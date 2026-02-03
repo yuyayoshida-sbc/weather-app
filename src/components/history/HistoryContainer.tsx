@@ -177,10 +177,13 @@ export default function HistoryContainer() {
           <h2 className="text-sm font-bold text-gray-800 mb-3">施術履歴一覧</h2>
           <div className="space-y-2">
             {historyData.slice().reverse().map((history) => (
-              <button
+              <div
                 key={history.id}
                 onClick={() => setSelectedHistory(selectedHistory?.id === history.id ? null : history)}
-                className="w-full bg-white rounded-xl p-4 border border-gray-100 shadow-sm text-left hover:border-blue-300 transition-colors"
+                className="w-full bg-white rounded-xl p-4 border border-gray-100 shadow-sm text-left hover:border-blue-300 transition-colors cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && setSelectedHistory(selectedHistory?.id === history.id ? null : history)}
               >
                 <div className="flex justify-between items-start">
                   <div>
@@ -245,7 +248,7 @@ export default function HistoryContainer() {
                     )}
                   </div>
                 )}
-              </button>
+              </div>
             ))}
           </div>
         </section>
