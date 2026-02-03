@@ -79,6 +79,8 @@ export default function ChatContainer() {
         showCustomerConfirm: response.showCustomerConfirm,
         showPayment: response.showPayment,
         showCustomerForm: response.showCustomerForm,
+        showWaitlistConfirm: response.showWaitlistConfirm,
+        showIntervalWarning: response.showIntervalWarning,
       };
 
       const updatedMessages = [...newMessages, assistantMessage];
@@ -153,6 +155,21 @@ export default function ChatContainer() {
     sendMessage(`顧客情報入力完了_${name}_${phone}`);
   };
 
+  // 満席時間を選択（キャンセル待ち案内）
+  const handleWaitlistSelect = (time: string) => {
+    sendMessage(`満席時間選択_${time}`);
+  };
+
+  // キャンセル待ち登録確定
+  const handleWaitlistConfirm = () => {
+    sendMessage("キャンセル待ち登録確定");
+  };
+
+  // キャンセル待ちキャンセル
+  const handleWaitlistCancel = () => {
+    sendMessage("別の時間を選びたい");
+  };
+
   // チャットをリセット
   const handleReset = () => {
     clearChatHistory();
@@ -195,6 +212,9 @@ export default function ChatContainer() {
             onPayment={handlePayment}
             onPayLater={handlePayLater}
             onCustomerFormSubmit={handleCustomerFormSubmit}
+            onWaitlistSelect={handleWaitlistSelect}
+            onWaitlistConfirm={handleWaitlistConfirm}
+            onWaitlistCancel={handleWaitlistCancel}
           />
         ))}
 

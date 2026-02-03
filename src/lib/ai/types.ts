@@ -1,4 +1,4 @@
-import { MenuOption, TimeSlot, BookingConfirmation } from "@/types/reservation";
+import { MenuOption, TimeSlot, BookingConfirmation, WaitlistEntry } from "@/types/reservation";
 
 export interface AIMessage {
   role: "user" | "assistant" | "system";
@@ -13,6 +13,8 @@ export interface AIResponse {
   showCustomerConfirm?: BookingConfirmation;  // 顧客確認表示
   showPayment?: BookingConfirmation;  // 事前決済表示
   showCustomerForm?: boolean;  // 顧客情報入力フォーム表示
+  showWaitlistConfirm?: WaitlistEntry;  // キャンセル待ち確認表示
+  showIntervalWarning?: boolean;  // 施術間隔警告表示
 }
 
 export interface AIProviderConfig {

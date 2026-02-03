@@ -86,6 +86,29 @@ export interface BookingConfirmation {
   withAnesthesia: boolean;   // 麻酔あり
 }
 
+// キャンセル待ちエントリー
+export interface WaitlistEntry {
+  id: string;
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  date: string;
+  time: string;
+  menu: string;
+  position: number;          // 待機順位
+  withAnesthesia: boolean;
+}
+
+// 施術履歴
+export interface TreatmentHistory {
+  id: string;
+  date: string;              // 施術日
+  menu: string;              // メニュー名
+  price: number;             // 料金
+  withAnesthesia: boolean;   // 麻酔使用
+  notes?: string;            // 備考
+}
+
 // チャットメッセージ
 export type MessageRole = "user" | "assistant";
 
@@ -101,6 +124,8 @@ export interface ChatMessage {
   showCustomerConfirm?: BookingConfirmation;  // 顧客確認表示
   showPayment?: BookingConfirmation;  // 事前決済表示
   showCustomerForm?: boolean;  // 顧客情報入力フォーム表示
+  showWaitlistConfirm?: WaitlistEntry;  // キャンセル待ち確認表示
+  showIntervalWarning?: boolean;  // 施術間隔警告表示
 }
 
 // 会話の状態

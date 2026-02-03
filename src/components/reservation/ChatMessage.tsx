@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ChatMessage as ChatMessageType, TimeSlot, MenuOption, BookingConfirmation } from "@/types/reservation";
+import { ChatMessage as ChatMessageType, TimeSlot, MenuOption, BookingConfirmation, WaitlistEntry } from "@/types/reservation";
 import DatePicker from "./DatePicker";
 
 interface ChatMessageProps {
   message: ChatMessageType;
   onTimeSelect?: (time: string) => void;
+  onWaitlistSelect?: (time: string) => void;
   onQuickReply?: (reply: string) => void;
   onMenuSelect?: (value: string) => void;
   onDateSelect?: (date: Date) => void;
@@ -15,11 +16,14 @@ interface ChatMessageProps {
   onPayment?: (booking: BookingConfirmation) => void;
   onPayLater?: (booking: BookingConfirmation) => void;
   onCustomerFormSubmit?: (name: string, phone: string) => void;
+  onWaitlistConfirm?: (entry: WaitlistEntry) => void;
+  onWaitlistCancel?: () => void;
 }
 
 export default function ChatMessage({
   message,
   onTimeSelect,
+  onWaitlistSelect,
   onQuickReply,
   onMenuSelect,
   onDateSelect,
@@ -27,7 +31,9 @@ export default function ChatMessage({
   onChangeCustomer,
   onPayment,
   onPayLater,
-  onCustomerFormSubmit
+  onCustomerFormSubmit,
+  onWaitlistConfirm,
+  onWaitlistCancel
 }: ChatMessageProps) {
   const isUser = message.role === "user";
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -95,20 +101,26 @@ export default function ChatMessage({
         {/* 時間スロット選択 */}
         {message.timeSlots && message.timeSlots.length > 0 && (
           <div className="mt-3 pt-3 border-t border-gray-100">
-            <p className="text-xs text-gray-500 mb-2">空き時間を選択：</p>
+            <p className="text-xs text-gray-500 mb-2">
+              時間を選択（黄色「待」はキャンセル待ち可能）：
+            </p>
             <div className="grid grid-cols-4 gap-2">
               {message.timeSlots.map((slot: TimeSlot) => (
                 <button
                   key={slot.time}
-                  onClick={() => slot.available && onTimeSelect?.(slot.time)}
-                  disabled={!slot.available}
+                  onClick={() =>
+                    slot.available
+                      ? onTimeSelect?.(slot.time)
+                      : onWaitlistSelect?.(slot.time)
+                  }
                   className={`px-3 py-2 text-sm rounded-lg transition-colors font-medium ${
                     slot.available
                       ? "bg-blue-100 text-blue-600 hover:bg-blue-200 border border-blue-200"
-                      : "bg-gray-100 text-gray-400 cursor-not-allowed line-through"
+                      : "bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200"
                   }`}
                 >
                   {slot.time}
+                  {!slot.available && <span className="text-xs ml-1">待</span>}
                 </button>
               ))}
             </div>
@@ -301,6 +313,71 @@ export default function ChatMessage({
               >
                 この内容で予約する
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* キャンセル待ち確認カード */}
+        {message.showWaitlistConfirm && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
+              <h3 className="text-sm font-bold text-amber-800 mb-3 flex items-center gap-2">
+                ⏳ キャンセル待ち登録
+              </h3>
+
+              <div className="space-y-2 text-sm text-gray-700">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">メニュー</span>
+                  <span className="font-medium">{message.showWaitlistConfirm.menu}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">希望日時</span>
+                  <span className="font-medium">{message.showWaitlistConfirm.date} {message.showWaitlistConfirm.time}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">麻酔クリーム</span>
+                  <span className="font-medium">{message.showWaitlistConfirm.withAnesthesia ? "あり (+¥3,000)" : "なし"}</span>
+                </div>
+                <div className="flex justify-between border-t border-amber-200 pt-2 mt-2">
+                  <span className="text-gray-500">待機順位</span>
+                  <span className="font-bold text-amber-700">#{message.showWaitlistConfirm.position}番目</span>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-amber-200">
+                <h4 className="text-sm font-bold text-amber-800 mb-2 flex items-center gap-2">
+                  👤 お客様情報
+                </h4>
+                <div className="space-y-1 text-sm text-gray-700">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">診察券番号</span>
+                    <span className="font-medium">{message.showWaitlistConfirm.customerId}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">お名前</span>
+                    <span className="font-medium">{message.showWaitlistConfirm.customerName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">電話番号</span>
+                    <span className="font-medium">{message.showWaitlistConfirm.customerPhone}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-col gap-2">
+                <button
+                  onClick={() => onWaitlistConfirm?.(message.showWaitlistConfirm!)}
+                  className="w-full px-4 py-3 bg-amber-600 text-white rounded-xl font-medium hover:bg-amber-700 transition-colors"
+                >
+                  ✓ この内容で登録する
+                </button>
+                <button
+                  onClick={() => onWaitlistCancel?.()}
+                  className="w-full px-4 py-2 bg-white text-gray-600 border border-gray-300 rounded-xl text-sm hover:bg-gray-50 transition-colors"
+                >
+                  キャンセル
+                </button>
+              </div>
             </div>
           </div>
         )}

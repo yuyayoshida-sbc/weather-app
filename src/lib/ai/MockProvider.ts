@@ -2,7 +2,8 @@ import { AIProvider, AIMessage, AIResponse, AIProviderConfig } from "./types";
 import { getPopularMenus, formatPrice, getPriceListText, AREA_LABELS, AREA_TYPES, PRICE_TABLE } from "@/data/menus";
 import { CLINIC_INFO, BUSINESS_HOURS_TEXT } from "@/data/clinic";
 import { findFAQByKeyword } from "@/data/faq";
-import { MenuOption, TimeSlot, BookingConfirmation } from "@/types/reservation";
+import { checkTreatmentInterval } from "@/data/history";
+import { MenuOption, TimeSlot, BookingConfirmation, WaitlistEntry } from "@/types/reservation";
 
 // サンプル顧客データ（実際は診察券番号から取得）
 const SAMPLE_CUSTOMER = {
@@ -163,6 +164,115 @@ ${CLINIC_INFO.name}
       };
     }
 
+    // ========== キャンセル待ち関連 ==========
+
+    // 満席時間を選択した場合（キャンセル待ち案内）
+    if (this.matchAny(input, ["満席時間選択_"])) {
+      const timeMatch = input.match(/満席時間選択_(\d{1,2}:\d{2})/);
+      const selectedTime = timeMatch ? timeMatch[1] : "ご指定の時間";
+
+      const waitlistOptions: MenuOption[] = [
+        { id: "waitlist", label: "⏳ キャンセル待ちに登録", value: `キャンセル待ち登録_${selectedTime}` },
+        { id: "other_time", label: "🔄 別の時間を選ぶ", value: "別の時間を選びたい" },
+      ];
+
+      return {
+        content: `申し訳ございません。
+${selectedTime}は現在満席です。
+
+キャンセル待ちに登録されますか？
+空きが出次第、お電話にてご連絡いたします。`,
+        menuOptions: waitlistOptions
+      };
+    }
+
+    // キャンセル待ち登録 → 麻酔選択
+    if (this.matchAny(input, ["キャンセル待ち登録_"])) {
+      const timeMatch = input.match(/キャンセル待ち登録_(\d{1,2}:\d{2})/);
+      const selectedTime = timeMatch ? timeMatch[1] : "";
+
+      const anesthesiaOptions: MenuOption[] = [
+        { id: "with_anesthesia", label: "麻酔クリームあり", value: `${selectedTime}キャンセル待ち確定_麻酔あり`, price: "+¥3,000" },
+        { id: "without_anesthesia", label: "麻酔クリームなし", value: `${selectedTime}キャンセル待ち確定_麻酔なし`, price: "" },
+      ];
+
+      return {
+        content: `${selectedTime}のキャンセル待ちですね。
+
+強力麻酔クリームはご利用になりますか？
+痛みが心配な方におすすめです。`,
+        menuOptions: anesthesiaOptions
+      };
+    }
+
+    // キャンセル待ち確定（麻酔選択後）→ 確認画面
+    if (this.matchAny(input, ["キャンセル待ち確定_麻酔あり", "キャンセル待ち確定_麻酔なし"])) {
+      const withAnesthesia = input.includes("麻酔あり");
+      const timeMatch = input.match(/(\d{1,2}:\d{2})/);
+      const selectedTime = timeMatch ? timeMatch[1] : "";
+
+      const waitlistEntry: WaitlistEntry = {
+        id: "WL-" + Date.now().toString().slice(-8),
+        customerId: SAMPLE_CUSTOMER.customerId,
+        customerName: SAMPLE_CUSTOMER.customerName,
+        customerPhone: SAMPLE_CUSTOMER.customerPhone,
+        date: "本日",
+        time: selectedTime,
+        menu: "ヒゲ脱毛 三部位 1回",
+        position: 1, // 仮：1番目
+        withAnesthesia,
+      };
+
+      return {
+        content: `キャンセル待ち登録内容の確認です。`,
+        showWaitlistConfirm: waitlistEntry
+      };
+    }
+
+    // キャンセル待ち登録確定
+    if (this.matchAny(input, ["キャンセル待ち登録確定"])) {
+      return {
+        content: `✅ キャンセル待ち登録が完了しました！
+
+【待機番号】
+WL-${Date.now().toString().slice(-8)}
+
+【待機順位】
+#1番目
+
+キャンセルが発生次第、お電話にてご連絡いたします。
+連絡がつかない場合は次の方に順番が回りますので、
+お電話には必ずご対応ください。
+
+${CLINIC_INFO.name}
+📞 ${CLINIC_INFO.phone}`
+      };
+    }
+
+    // 別の時間を選ぶ
+    if (this.matchAny(input, ["別の時間を選びたい"])) {
+      const timeSlots: TimeSlot[] = [
+        { time: "11:00", available: true },
+        { time: "11:30", available: true },
+        { time: "12:00", available: false },
+        { time: "12:30", available: true },
+        { time: "14:00", available: true },
+        { time: "14:30", available: false },
+        { time: "15:00", available: true },
+        { time: "15:30", available: true },
+        { time: "17:00", available: true },
+        { time: "17:30", available: true },
+        { time: "18:00", available: false },
+        { time: "18:30", available: true },
+      ];
+
+      return {
+        content: `改めて空き時間をお選びください。
+黄色の「待」マークは満席ですが、キャンセル待ち登録が可能です。`,
+        timeSlots
+      };
+    }
+
     // 日付選択（カレンダーから「2月5日（水）を予約」など）- 優先
     if (/\d{1,2}月\d{1,2}日/.test(input) || this.matchAny(input, ["空き時間を見たい", "今週末の"])) {
       const timeSlots: TimeSlot[] = [
@@ -228,8 +338,11 @@ ${CLINIC_INFO.name}
       };
     }
 
-    // 予約したい（部位選択へ）
+    // 予約したい（部位選択へ）- 施術間隔チェック付き
     if (this.matchAny(input, ["予約したい", "よやくしたい", "取りたい", "行きたい", "受けたい", "申し込み"])) {
+      // 施術間隔チェック
+      const intervalCheck = checkTreatmentInterval();
+
       const menuOptions: MenuOption[] = [
         { id: "three", label: "三部位（鼻下・アゴ・アゴ下）", value: "三部位を希望", price: "¥9,800〜 ← 一番人気！" },
         { id: "cheek", label: "もみあげ・頬", value: "もみあげ・頬を希望", price: "¥8,800〜" },
@@ -239,6 +352,21 @@ ${CLINIC_INFO.name}
         { id: "cheek_neck", label: "もみあげ・頬 + 首", value: "もみあげ・頬+首を希望", price: "¥13,800〜" },
         { id: "all", label: "全部位", value: "全部位を希望", price: "¥19,800〜 ← しっかり脱毛" },
       ];
+
+      // 間隔が短い場合は警告を表示
+      if (intervalCheck.isWarning && intervalCheck.daysSinceLast !== null) {
+        return {
+          content: `ご予約ですね。ありがとうございます！
+
+⚠️ 前回の施術から${intervalCheck.daysSinceLast}日です。
+効果を最大限に発揮するため、4週間（28日）以上の間隔をおすすめしております。
+
+それでもご予約を続ける場合は、脱毛したい部位をお選びください。`,
+          menuOptions,
+          showIntervalWarning: true
+        };
+      }
+
       return {
         content: `ご予約ですね。ありがとうございます！
 
