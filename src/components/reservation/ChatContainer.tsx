@@ -2,64 +2,182 @@
 
 import { useState, useEffect, useRef } from "react";
 import { ChatMessage as ChatMessageType } from "@/types/reservation";
-import { mockProvider } from "@/lib/ai/MockProvider";
+import { CustomerSession } from "@/types/customer";
+import { mockProvider, setCurrentSession } from "@/lib/ai/MockProvider";
 import { saveChatHistory, loadChatHistory, clearChatHistory } from "@/utils/reservationStorage";
+import {
+  loadCustomerSession,
+  clearCustomerSession,
+  createCustomerSession,
+} from "@/utils/customerSession";
 import { CLINIC_INFO } from "@/data/clinic";
 import { updateCustomerAddress } from "@/data/nearbyClinics";
-import { checkCourseReminders } from "@/data/history";
+import {
+  findCustomerByPatientNumber,
+  getCustomerUnusedCourses,
+  getCustomerHistory,
+} from "@/data/customers";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import QuickActions from "./QuickActions";
+import PatientNumberInput from "./PatientNumberInput";
 
-const INITIAL_MESSAGE: ChatMessageType = {
-  id: "welcome",
+// 認証要求メッセージ
+const AUTH_REQUEST_MESSAGE: ChatMessageType = {
+  id: "auth-request",
   role: "assistant",
   content: `こんにちは！${CLINIC_INFO.name}の予約アシスタントです。
 
-男性専門のヒゲ脱毛クリニックです。
-ご予約や料金について、お気軽にお尋ねください！
-
-下のボタンからもご質問いただけます。`,
+お客様情報を確認させていただきます。
+診察券番号をご入力ください。`,
   timestamp: new Date().toISOString(),
-  quickReplies: ["三部位の料金は？", "痛みはある？", "初めてです"],
+  showPatientNumberInput: true,
+};
+
+// 認証済み初期メッセージを生成
+function createAuthenticatedMessage(
+  customerName: string,
+  unusedCoursesCount: number
+): ChatMessageType {
+  let content = `${customerName}様、こんにちは！
+${CLINIC_INFO.name}の予約アシスタントです。
+
+いつもご利用ありがとうございます。
+ご予約や料金について、お気軽にお尋ねください！`;
+
+  if (unusedCoursesCount > 0) {
+    content += `
+
+🎫 未消化のコースが${unusedCoursesCount}件ございます。`;
+  }
+
+  return {
+    id: "welcome-auth",
+    role: "assistant",
+    content,
+    timestamp: new Date().toISOString(),
+    quickReplies: ["予約したい", "料金を見たい", "営業時間は？"],
+  };
+}
+
+// ゲスト用初期メッセージ
+const GUEST_INITIAL_MESSAGE: ChatMessageType = {
+  id: "welcome-guest",
+  role: "assistant",
+  content: `${CLINIC_INFO.name}の予約アシスタントです。
+
+初めてのご来院ですね！
+男性専門のヒゲ脱毛クリニックです。
+
+ご予約や料金について、お気軽にお尋ねください！`,
+  timestamp: new Date().toISOString(),
+  quickReplies: ["三部位の料金は？", "痛みはある？", "カウンセリング予約"],
 };
 
 export default function ChatContainer() {
-  const [messages, setMessages] = useState<ChatMessageType[]>([INITIAL_MESSAGE]);
+  const [messages, setMessages] = useState<ChatMessageType[]>([AUTH_REQUEST_MESSAGE]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [authError, setAuthError] = useState<string>("");
+  const [customerSession, setCustomerSession] = useState<CustomerSession | null>(null);
+  const [showAuthForm, setShowAuthForm] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 初回ロード時に履歴を読み込み、リマインダーをチェック
+  // 初回ロード時にセッションを確認
   useEffect(() => {
+    const session = loadCustomerSession();
+    if (session && session.isAuthenticated) {
+      // 既存セッションがある場合
+      setCustomerSession(session);
+      setCurrentSession(session);
+      setShowAuthForm(false);
+      initializeAuthenticatedChat(session);
+    }
+  }, []);
+
+  // 認証済みチャットの初期化
+  const initializeAuthenticatedChat = (session: CustomerSession) => {
     const history = loadChatHistory();
-    const messagesToSet: ChatMessageType[] = [INITIAL_MESSAGE];
+    const unusedCourses = getCustomerUnusedCourses(session.customerId);
+    const customerHistory = getCustomerHistory(session.customerId);
+
+    const messagesToSet: ChatMessageType[] = [
+      createAuthenticatedMessage(session.customerName, unusedCourses.length),
+    ];
 
     // 履歴があれば追加
     if (history.length > 0) {
       messagesToSet.push(...history);
     }
 
-    // コース消化リマインダーをチェック（3ヶ月経過）
-    const reminder = checkCourseReminders();
-    if (reminder) {
-      const reminderMessage: ChatMessageType = {
-        id: `reminder-${Date.now()}`,
-        role: "assistant",
-        content: reminder.message,
-        timestamp: new Date().toISOString(),
-        quickReplies: reminder.quickReplies,
-        isReminder: true,
-      };
-      messagesToSet.push(reminderMessage);
+    // 3ヶ月以上経過したコースがあればリマインダー表示
+    for (const course of unusedCourses) {
+      if (course.lastTreatmentDate) {
+        const lastDate = new Date(course.lastTreatmentDate);
+        const today = new Date();
+        const diffDays = Math.floor(
+          (today.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        if (diffDays >= 90) {
+          const months = Math.floor(diffDays / 30);
+          const reminderMessage: ChatMessageType = {
+            id: `reminder-${Date.now()}`,
+            role: "assistant",
+            content: `🔔 前回の${course.courseName}の施術から約${months}ヶ月が経過しました。
+
+残り${course.remainingSessions}回の施術がございます。
+次回のご予約はいかがでしょうか？`,
+            timestamp: new Date().toISOString(),
+            quickReplies: ["予約する", "後で検討する"],
+            isReminder: true,
+          };
+          messagesToSet.push(reminderMessage);
+          break; // 最初の1件のみ
+        }
+      }
     }
 
     setMessages(messagesToSet);
-  }, []);
+  };
 
   // メッセージが追加されたらスクロール
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // 診察券番号で認証
+  const handlePatientNumberSubmit = (patientNumber: string) => {
+    setIsAuthenticating(true);
+    setAuthError("");
+
+    // 顧客を検索
+    const customer = findCustomerByPatientNumber(patientNumber);
+
+    if (customer) {
+      // セッション作成
+      const session = createCustomerSession(
+        customer.id,
+        customer.patientNumber,
+        customer.name
+      );
+      setCustomerSession(session);
+      setCurrentSession(session);
+      setShowAuthForm(false);
+      initializeAuthenticatedChat(session);
+    } else {
+      setAuthError("診察券番号が見つかりません。再度ご確認ください。");
+    }
+
+    setIsAuthenticating(false);
+  };
+
+  // ゲストとして続行（初めての方）
+  const handleSkipAuth = () => {
+    setShowAuthForm(false);
+    setCurrentSession(null);
+    setMessages([GUEST_INITIAL_MESSAGE]);
+  };
 
   // メッセージを送信
   const sendMessage = async (content: string) => {
@@ -80,7 +198,7 @@ export default function ChatContainer() {
     try {
       // AIに送信
       const aiMessages = newMessages
-        .filter((m) => m.id !== "welcome")
+        .filter((m) => !m.id.startsWith("welcome") && !m.id.startsWith("auth"))
         .map((m) => ({
           role: m.role as "user" | "assistant",
           content: m.content,
@@ -111,7 +229,11 @@ export default function ChatContainer() {
       setMessages(updatedMessages);
 
       // 履歴を保存（welcomeメッセージ以外）
-      saveChatHistory(updatedMessages.filter((m) => m.id !== "welcome"));
+      saveChatHistory(
+        updatedMessages.filter(
+          (m) => !m.id.startsWith("welcome") && !m.id.startsWith("auth") && !m.id.startsWith("reminder")
+        )
+      );
     } catch (error) {
       console.error("Error sending message:", error);
       const errorMessage: ChatMessageType = {
@@ -209,7 +331,12 @@ export default function ChatContainer() {
   // チャットをリセット
   const handleReset = () => {
     clearChatHistory();
-    setMessages([INITIAL_MESSAGE]);
+    clearCustomerSession();
+    setCurrentSession(null);
+    setCustomerSession(null);
+    setShowAuthForm(true);
+    setAuthError("");
+    setMessages([AUTH_REQUEST_MESSAGE]);
   };
 
   return (
@@ -222,7 +349,11 @@ export default function ChatContainer() {
           </div>
           <div>
             <h1 className="font-semibold text-gray-800">{CLINIC_INFO.name}</h1>
-            <p className="text-xs text-gray-500">予約アシスタント</p>
+            <p className="text-xs text-gray-500">
+              {customerSession
+                ? `${customerSession.customerName}様`
+                : "予約アシスタント"}
+            </p>
           </div>
         </div>
         <button
@@ -235,26 +366,50 @@ export default function ChatContainer() {
 
       {/* メッセージエリア */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
-          <ChatMessage
-            key={message.id}
-            message={message}
-            onTimeSelect={handleTimeSelect}
-            onQuickReply={handleQuickReply}
-            onMenuSelect={handleMenuSelect}
-            onDateSelect={handleDateSelect}
-            onConfirmCustomer={handleConfirmCustomer}
-            onChangeCustomer={handleChangeCustomer}
-            onPayment={handlePayment}
-            onPayLater={handlePayLater}
-            onCustomerFormSubmit={handleCustomerFormSubmit}
-            onWaitlistSelect={handleWaitlistSelect}
-            onWaitlistConfirm={handleWaitlistConfirm}
-            onWaitlistCancel={handleWaitlistCancel}
-            onClinicTimeSelect={handleClinicTimeSelect}
-            onAddressSubmit={handleAddressSubmit}
-          />
-        ))}
+        {/* 認証フォーム表示 */}
+        {showAuthForm ? (
+          <div className="space-y-4">
+            <div className="flex justify-start">
+              <div className="bg-white rounded-2xl rounded-bl-md px-4 py-3 shadow-md max-w-[85%]">
+                <div className="flex items-start gap-2">
+                  <span className="text-lg">🤖</span>
+                  <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                    {AUTH_REQUEST_MESSAGE.content}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <PatientNumberInput
+              onSubmit={handlePatientNumberSubmit}
+              onSkip={handleSkipAuth}
+              error={authError}
+              isLoading={isAuthenticating}
+            />
+          </div>
+        ) : (
+          <>
+            {messages.map((message) => (
+              <ChatMessage
+                key={message.id}
+                message={message}
+                onTimeSelect={handleTimeSelect}
+                onQuickReply={handleQuickReply}
+                onMenuSelect={handleMenuSelect}
+                onDateSelect={handleDateSelect}
+                onConfirmCustomer={handleConfirmCustomer}
+                onChangeCustomer={handleChangeCustomer}
+                onPayment={handlePayment}
+                onPayLater={handlePayLater}
+                onCustomerFormSubmit={handleCustomerFormSubmit}
+                onWaitlistSelect={handleWaitlistSelect}
+                onWaitlistConfirm={handleWaitlistConfirm}
+                onWaitlistCancel={handleWaitlistCancel}
+                onClinicTimeSelect={handleClinicTimeSelect}
+                onAddressSubmit={handleAddressSubmit}
+              />
+            ))}
+          </>
+        )}
 
         {/* ローディング表示 */}
         {isLoading && (
@@ -264,9 +419,18 @@ export default function ChatContainer() {
                 <span className="text-lg">🤖</span>
                 <span>入力中</span>
                 <span className="flex gap-1">
-                  <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                  <span
+                    className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"
+                    style={{ animationDelay: "0ms" }}
+                  />
+                  <span
+                    className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"
+                    style={{ animationDelay: "150ms" }}
+                  />
+                  <span
+                    className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"
+                    style={{ animationDelay: "300ms" }}
+                  />
                 </span>
               </div>
             </div>
@@ -276,15 +440,19 @@ export default function ChatContainer() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* クイックアクション */}
-      <QuickActions onAction={handleQuickAction} disabled={isLoading} />
+      {/* クイックアクション（認証後のみ表示） */}
+      {!showAuthForm && (
+        <QuickActions onAction={handleQuickAction} disabled={isLoading} />
+      )}
 
-      {/* 入力フォーム */}
-      <ChatInput
-        onSend={sendMessage}
-        disabled={isLoading}
-        placeholder="ご質問やご予約内容を入力..."
-      />
+      {/* 入力フォーム（認証後のみ表示） */}
+      {!showAuthForm && (
+        <ChatInput
+          onSend={sendMessage}
+          disabled={isLoading}
+          placeholder="ご質問やご予約内容を入力..."
+        />
+      )}
     </div>
   );
 }

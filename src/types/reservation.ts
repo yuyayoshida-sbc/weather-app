@@ -174,6 +174,7 @@ export interface ChatMessage {
   showNearbyClinicSlots?: ClinicAvailability[];  // 近隣クリニック空き状況
   showAddressForm?: boolean;  // 住所入力フォーム表示
   isReminder?: boolean;       // リマインダーメッセージフラグ
+  showPatientNumberInput?: boolean;  // 診察券番号入力フォーム表示
 }
 
 // 会話の状態

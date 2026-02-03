@@ -4,14 +4,74 @@ import { CLINIC_INFO, BUSINESS_HOURS_TEXT } from "@/data/clinic";
 import { findFAQByKeyword } from "@/data/faq";
 import { checkTreatmentInterval, getUnusedCourses } from "@/data/history";
 import { getNearbyClinicAvailability, getClinicName, updateCustomerAddress, getCustomerAddress } from "@/data/nearbyClinics";
+import { findCustomerById, getCustomerUnusedCourses, getCustomerHistory, CUSTOMER_HISTORY } from "@/data/customers";
 import { MenuOption, TimeSlot, BookingConfirmation, WaitlistEntry } from "@/types/reservation";
+import { CustomerSession } from "@/types/customer";
 
-// サンプル顧客データ（実際は診察券番号から取得）
-const SAMPLE_CUSTOMER = {
-  customerId: "SBC-123456",
-  customerName: "SBC太郎",
-  customerPhone: "090-1111-1111",
-};
+// 現在のセッション（ChatContainerから設定される）
+let currentSession: CustomerSession | null = null;
+
+// セッションを設定する関数
+export function setCurrentSession(session: CustomerSession | null): void {
+  currentSession = session;
+}
+
+// 現在のセッションを取得する関数
+export function getCurrentSession(): CustomerSession | null {
+  return currentSession;
+}
+
+// 顧客情報を取得するヘルパー関数
+function getCustomerInfo(): { customerId: string; customerName: string; customerPhone: string } {
+  if (currentSession && currentSession.isAuthenticated) {
+    const customer = findCustomerById(currentSession.customerId);
+    if (customer) {
+      return {
+        customerId: customer.patientNumber,
+        customerName: customer.name,
+        customerPhone: customer.phone,
+      };
+    }
+  }
+  // デフォルト（未認証時のフォールバック）
+  return {
+    customerId: "GUEST",
+    customerName: "お客様",
+    customerPhone: "",
+  };
+}
+
+// 顧客の未消化コースを取得
+function getCustomerUnusedCoursesFromSession(): ReturnType<typeof getUnusedCourses> {
+  if (currentSession && currentSession.isAuthenticated) {
+    return getCustomerUnusedCourses(currentSession.customerId);
+  }
+  // フォールバック（従来の動作）
+  return getUnusedCourses();
+}
+
+// 顧客の施術間隔チェック
+function checkCustomerTreatmentInterval(): { isWarning: boolean; daysSinceLast: number | null } {
+  if (currentSession && currentSession.isAuthenticated) {
+    const history = getCustomerHistory(currentSession.customerId);
+    if (history.length === 0) return { isWarning: false, daysSinceLast: null };
+
+    const sorted = [...history].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    const lastDate = new Date(sorted[0].date);
+    const today = new Date();
+    const diffTime = today.getTime() - lastDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    return {
+      isWarning: diffDays < 28,
+      daysSinceLast: diffDays,
+    };
+  }
+  // フォールバック（従来の動作）
+  return checkTreatmentInterval();
+}
 
 export class MockAIProvider implements AIProvider {
   name = "mock";
@@ -119,10 +179,11 @@ ${homeStation}駅周辺（1時間圏内）で本日空きのあるクリニッ�
       const anesthesiaPrice = withAnesthesia ? 3000 : 0;
       const totalPrice = basePrice + anesthesiaPrice;
 
+      const customerInfo = getCustomerInfo();
       const bookingInfo: BookingConfirmation = {
-        customerId: SAMPLE_CUSTOMER.customerId,
-        customerName: SAMPLE_CUSTOMER.customerName,
-        customerPhone: SAMPLE_CUSTOMER.customerPhone,
+        customerId: customerInfo.customerId,
+        customerName: customerInfo.customerName,
+        customerPhone: customerInfo.customerPhone,
         date: "本日", // 実際は選択された日付
         time: selectedTime,
         menu: "ヒゲ脱毛 三部位 1回", // 実際は選択されたメニュー
@@ -139,10 +200,11 @@ ${homeStation}駅周辺（1時間圏内）で本日空きのあるクリニッ�
     // 顧客情報確認OK → 予約確定・決済画面へ
     if (this.matchAny(input, ["この内容で予約確定"])) {
       // 入力から予約情報を復元（実際はセッション管理）
+      const customerInfo = getCustomerInfo();
       const bookingInfo: BookingConfirmation = {
-        customerId: SAMPLE_CUSTOMER.customerId,
-        customerName: SAMPLE_CUSTOMER.customerName,
-        customerPhone: SAMPLE_CUSTOMER.customerPhone,
+        customerId: customerInfo.customerId,
+        customerName: customerInfo.customerName,
+        customerPhone: customerInfo.customerPhone,
         date: "本日",
         time: "11:00",
         menu: "ヒゲ脱毛 三部位 1回",
@@ -271,11 +333,12 @@ ${selectedTime}は現在満席です。
       const timeMatch = input.match(/(\d{1,2}:\d{2})/);
       const selectedTime = timeMatch ? timeMatch[1] : "";
 
+      const customerInfo = getCustomerInfo();
       const waitlistEntry: WaitlistEntry = {
         id: "WL-" + Date.now().toString().slice(-8),
-        customerId: SAMPLE_CUSTOMER.customerId,
-        customerName: SAMPLE_CUSTOMER.customerName,
-        customerPhone: SAMPLE_CUSTOMER.customerPhone,
+        customerId: customerInfo.customerId,
+        customerName: customerInfo.customerName,
+        customerPhone: customerInfo.customerPhone,
         date: "本日",
         time: selectedTime,
         menu: "ヒゲ脱毛 三部位 1回",
@@ -468,8 +531,8 @@ ${customerAddress.homeStation}駅${customerAddress.workStation ? `・${customerA
 
     // リマインダーからの「予約する」ボタン
     if (input === "予約する") {
-      // 未消化コースをチェック
-      const unusedCourses = getUnusedCourses();
+      // 未消化コースをチェック（顧客セッションから取得）
+      const unusedCourses = getCustomerUnusedCoursesFromSession();
 
       // 基本メニューオプション
       const baseMenuOptions: MenuOption[] = [
@@ -516,11 +579,11 @@ ${customerAddress.homeStation}駅${customerAddress.workStation ? `・${customerA
 
     // 予約したい（部位選択へ）- 施術間隔チェック付き
     if (this.matchAny(input, ["予約したい", "よやくしたい", "取りたい", "行きたい", "受けたい", "申し込み"])) {
-      // 施術間隔チェック
-      const intervalCheck = checkTreatmentInterval();
+      // 施術間隔チェック（顧客セッションから取得）
+      const intervalCheck = checkCustomerTreatmentInterval();
 
-      // 未消化コースをチェック
-      const unusedCourses = getUnusedCourses();
+      // 未消化コースをチェック（顧客セッションから取得）
+      const unusedCourses = getCustomerUnusedCoursesFromSession();
 
       // 基本メニューオプション
       const baseMenuOptions: MenuOption[] = [
