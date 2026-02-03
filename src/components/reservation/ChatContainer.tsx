@@ -94,6 +94,7 @@ export default function ChatContainer() {
         role: "assistant",
         content: response.content,
         timestamp: new Date().toISOString(),
+        quickReplies: response.quickReplies,
         menuOptions: response.menuOptions,
         timeSlots: response.timeSlots,
         showCalendar: response.showCalendar,

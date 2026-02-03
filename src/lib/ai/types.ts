@@ -9,6 +9,7 @@ export interface AIResponse {
   content: string;
   menuOptions?: MenuOption[];  // メニュー選択肢
   timeSlots?: TimeSlot[];      // 時間選択肢
+  quickReplies?: string[];     // クイック返信オプション
   showCalendar?: boolean;      // カレンダー表示フラグ
   showCustomerConfirm?: BookingConfirmation;  // 顧客確認表示
   showPayment?: BookingConfirmation;  // 事前決済表示

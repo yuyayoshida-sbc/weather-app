@@ -1,0 +1,43 @@
+import { test, expect } from '@playwright/test';
+
+test.describe('リマインダーからの予約フロー', () => {
+  test('リマインダーの「予約する」ボタンを押すと、お礼を言ってメニュー選択に移行する', async ({ page }) => {
+    await page.goto('/reservation');
+
+    // リマインダーが表示されるのを待つ
+    await expect(page.getByText(/施術から約.*ヶ月が経過しました/)).toBeVisible();
+
+    // 「予約する」ボタンをクリック
+    await page.getByRole('button', { name: '予約する', exact: true }).click();
+    await page.waitForTimeout(1000);
+
+    // お礼メッセージが表示される
+    await expect(page.getByText('ありがとうございます！')).toBeVisible();
+
+    // メニュー選択肢が表示される
+    await expect(page.getByText('メニューをお選びください')).toBeVisible();
+
+    // 未消化コースが表示される（おすすめとして）
+    await expect(page.getByText(/🎫.*残り.*回/)).toBeVisible();
+
+    // キャンセルポリシーメッセージが表示されないことを確認
+    await expect(page.getByText(/キャンセル料として/)).not.toBeVisible();
+  });
+
+  test('リマインダーの「後で検討する」ボタンを押すと適切なメッセージが表示される', async ({ page }) => {
+    await page.goto('/reservation');
+
+    // リマインダーが表示されるのを待つ
+    await expect(page.getByText(/施術から約.*ヶ月が経過しました/)).toBeVisible();
+
+    // 「後で検討する」ボタンをクリック
+    await page.getByRole('button', { name: '後で検討する', exact: true }).click();
+    await page.waitForTimeout(1000);
+
+    // 適切なメッセージが表示される
+    await expect(page.getByText('かしこまりました')).toBeVisible();
+
+    // クイック返信が表示される
+    await expect(page.getByRole('button', { name: '予約したい' })).toBeVisible();
+  });
+});

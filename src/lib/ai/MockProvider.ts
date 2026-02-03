@@ -466,6 +466,54 @@ ${customerAddress.homeStation}駅${customerAddress.workStation ? `・${customerA
       };
     }
 
+    // リマインダーからの「予約する」ボタン
+    if (input === "予約する") {
+      // 未消化コースをチェック
+      const unusedCourses = getUnusedCourses();
+
+      // 基本メニューオプション
+      const baseMenuOptions: MenuOption[] = [
+        { id: "three", label: "三部位（鼻下・アゴ・アゴ下）", value: "三部位を希望", price: "¥9,800〜 ← 一番人気！" },
+        { id: "cheek", label: "もみあげ・頬", value: "もみあげ・頬を希望", price: "¥8,800〜" },
+        { id: "neck", label: "首", value: "首を希望", price: "¥6,800〜" },
+        { id: "three_cheek", label: "三部位 + もみあげ・頬", value: "三部位+もみあげ・頬を希望", price: "¥16,800〜" },
+        { id: "three_neck", label: "三部位 + 首", value: "三部位+首を希望", price: "¥14,800〜" },
+        { id: "cheek_neck", label: "もみあげ・頬 + 首", value: "もみあげ・頬+首を希望", price: "¥13,800〜" },
+        { id: "all", label: "全部位", value: "全部位を希望", price: "¥19,800〜 ← しっかり脱毛" },
+      ];
+
+      // 未消化コースがある場合は一番上に追加
+      let menuOptions: MenuOption[] = baseMenuOptions;
+
+      if (unusedCourses.length > 0) {
+        const courseOptions: MenuOption[] = unusedCourses.map((course, idx) => ({
+          id: `unused_${idx}`,
+          label: `🎫 ${course.courseName}（残り${course.remainingSessions}回）`,
+          value: "未消化コースを消化",
+          price: "← おすすめ！追加料金なし"
+        }));
+        menuOptions = [...courseOptions, ...baseMenuOptions];
+      }
+
+      return {
+        content: `ありがとうございます！
+
+それでは、メニューをお選びください。`,
+        menuOptions
+      };
+    }
+
+    // 「後で検討する」ボタン
+    if (input === "後で検討する") {
+      return {
+        content: `かしこまりました。
+
+ご都合の良い時にいつでもお声がけください。
+下のボタンからもご予約いただけます。`,
+        quickReplies: ["予約したい", "料金を見たい", "営業時間は？"]
+      };
+    }
+
     // 予約したい（部位選択へ）- 施術間隔チェック付き
     if (this.matchAny(input, ["予約したい", "よやくしたい", "取りたい", "行きたい", "受けたい", "申し込み"])) {
       // 施術間隔チェック
