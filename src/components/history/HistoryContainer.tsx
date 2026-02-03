@@ -223,7 +223,7 @@ export default function HistoryContainer() {
                           value={editNotes}
                           onChange={(e) => setEditNotes(e.target.value)}
                           placeholder="メモを入力..."
-                          className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                          className="w-full p-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                           rows={3}
                         />
                         <div className="flex gap-2 justify-end">

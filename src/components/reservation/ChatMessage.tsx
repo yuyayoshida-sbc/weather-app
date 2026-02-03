@@ -294,7 +294,7 @@ export default function ChatMessage({
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     placeholder="山田 太郎"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
                 <div>
@@ -304,7 +304,7 @@ export default function ChatMessage({
                     value={formPhone}
                     onChange={(e) => setFormPhone(e.target.value)}
                     placeholder="090-1234-5678"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -408,7 +408,7 @@ export default function ChatMessage({
                     value={homeStation}
                     onChange={(e) => setHomeStation(e.target.value)}
                     placeholder="例：池袋"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-3 py-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
                 </div>
                 <div>
@@ -418,7 +418,7 @@ export default function ChatMessage({
                     value={workStation}
                     onChange={(e) => setWorkStation(e.target.value)}
                     placeholder="例：品川"
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    className="w-full px-3 py-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   />
                 </div>
               </div>
