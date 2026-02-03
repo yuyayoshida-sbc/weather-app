@@ -127,6 +127,18 @@ export interface WaitlistEntry {
   withAnesthesia: boolean;
 }
 
+// レーザー種類
+export type LaserType = 'YAG' | 'アレキサンドライト' | 'ダイオード' | 'IPL';
+
+// 施術フィードバック
+export interface TreatmentFeedback {
+  satisfactionRating: 1 | 2 | 3 | 4 | 5;  // 満足度（1-5星）
+  hasLeakage: boolean;                     // 照射漏れの有無
+  leakageDetails?: string;                 // 照射漏れ詳細
+  comment?: string;                        // コメント
+  createdAt: string;
+}
+
 // 施術履歴
 export interface TreatmentHistory {
   id: string;
@@ -135,6 +147,11 @@ export interface TreatmentHistory {
   price: number;             // 料金
   withAnesthesia: boolean;   // 麻酔使用
   notes?: string;            // 備考
+  // 新規追加フィールド
+  clinicName: string;        // 施術院名
+  laserType: LaserType;      // レーザー種類
+  nurseName: string;         // 担当看護師名
+  feedback?: TreatmentFeedback;  // フィードバック
 }
 
 // チャットメッセージ
@@ -156,6 +173,7 @@ export interface ChatMessage {
   showIntervalWarning?: boolean;  // 施術間隔警告表示
   showNearbyClinicSlots?: ClinicAvailability[];  // 近隣クリニック空き状況
   showAddressForm?: boolean;  // 住所入力フォーム表示
+  isReminder?: boolean;       // リマインダーメッセージフラグ
 }
 
 // 会話の状態

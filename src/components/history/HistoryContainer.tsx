@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { TREATMENT_HISTORY, DOWNTIME_CARE, getTreatmentCount, getLastTreatmentDate, updateTreatmentNotes, getUnusedCourses, CourseContract } from "@/data/history";
+import { TREATMENT_HISTORY, DOWNTIME_CARE, getTreatmentCount, getLastTreatmentDate, updateTreatmentNotes, updateTreatmentFeedback, getUnusedCourses, CourseContract } from "@/data/history";
 import { CLINIC_INFO } from "@/data/clinic";
-import { TreatmentHistory } from "@/types/reservation";
+import { TreatmentHistory, TreatmentFeedback } from "@/types/reservation";
+import StarRating from "./StarRating";
 
 export default function HistoryContainer() {
   const [selectedHistory, setSelectedHistory] = useState<TreatmentHistory | null>(null);
@@ -12,6 +13,13 @@ export default function HistoryContainer() {
   const [editNotes, setEditNotes] = useState("");
   const [historyData, setHistoryData] = useState<TreatmentHistory[]>([]);
   const [unusedCourses, setUnusedCourses] = useState<CourseContract[]>([]);
+
+  // フィードバック編集状態
+  const [feedbackEditingId, setFeedbackEditingId] = useState<string | null>(null);
+  const [feedbackRating, setFeedbackRating] = useState<1 | 2 | 3 | 4 | 5>(3);
+  const [feedbackHasLeakage, setFeedbackHasLeakage] = useState(false);
+  const [feedbackLeakageDetails, setFeedbackLeakageDetails] = useState("");
+  const [feedbackComment, setFeedbackComment] = useState("");
 
   // 初期化時に履歴データを設定
   useEffect(() => {
@@ -45,6 +53,44 @@ export default function HistoryContainer() {
     setEditNotes("");
   };
 
+  // フィードバック編集を開始
+  const handleFeedbackEditStart = (history: TreatmentHistory, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFeedbackEditingId(history.id);
+    if (history.feedback) {
+      setFeedbackRating(history.feedback.satisfactionRating);
+      setFeedbackHasLeakage(history.feedback.hasLeakage);
+      setFeedbackLeakageDetails(history.feedback.leakageDetails || "");
+      setFeedbackComment(history.feedback.comment || "");
+    } else {
+      setFeedbackRating(3);
+      setFeedbackHasLeakage(false);
+      setFeedbackLeakageDetails("");
+      setFeedbackComment("");
+    }
+  };
+
+  // フィードバックの保存
+  const handleSaveFeedback = (historyId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const feedback: TreatmentFeedback = {
+      satisfactionRating: feedbackRating,
+      hasLeakage: feedbackHasLeakage,
+      leakageDetails: feedbackHasLeakage ? feedbackLeakageDetails : undefined,
+      comment: feedbackComment || undefined,
+      createdAt: new Date().toISOString(),
+    };
+    updateTreatmentFeedback(historyId, feedback);
+    setHistoryData([...TREATMENT_HISTORY]);
+    setFeedbackEditingId(null);
+  };
+
+  // フィードバック編集のキャンセル
+  const handleCancelFeedbackEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFeedbackEditingId(null);
+  };
+
   // 日付をフォーマット
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -53,6 +99,22 @@ export default function HistoryContainer() {
     const day = date.getDate();
     const weekday = ["日", "月", "火", "水", "木", "金", "土"][date.getDay()];
     return `${year}/${month}/${day}（${weekday}）`;
+  };
+
+  // レーザータイプのバッジカラー
+  const getLaserBadgeColor = (laserType: string) => {
+    switch (laserType) {
+      case "YAG":
+        return "bg-red-100 text-red-700";
+      case "アレキサンドライト":
+        return "bg-green-100 text-green-700";
+      case "ダイオード":
+        return "bg-purple-100 text-purple-700";
+      case "IPL":
+        return "bg-orange-100 text-orange-700";
+      default:
+        return "bg-gray-100 text-gray-700";
+    }
   };
 
   return (
@@ -175,7 +237,7 @@ export default function HistoryContainer() {
         {/* 履歴リスト */}
         <section>
           <h2 className="text-sm font-bold text-gray-800 mb-3">施術履歴一覧</h2>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {historyData.slice().reverse().map((history) => (
               <div
                 key={history.id}
@@ -185,6 +247,7 @@ export default function HistoryContainer() {
                 tabIndex={0}
                 onKeyDown={(e) => e.key === 'Enter' && setSelectedHistory(selectedHistory?.id === history.id ? null : history)}
               >
+                {/* 基本情報 */}
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="font-medium text-gray-800 text-sm">{history.menu}</p>
@@ -202,50 +265,178 @@ export default function HistoryContainer() {
                   </div>
                 </div>
 
-                {/* 詳細表示 */}
-                {selectedHistory?.id === history.id && (
+                {/* 施術詳細（院・レーザー・担当者） */}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                    🏥 {history.clinicName}
+                  </span>
+                  <span className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full ${getLaserBadgeColor(history.laserType)}`}>
+                    💉 {history.laserType}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                    👩‍⚕️ {history.nurseName}
+                  </span>
+                </div>
+
+                {/* フィードバック表示（常に表示） */}
+                {history.feedback && feedbackEditingId !== history.id && (
                   <div className="mt-3 pt-3 border-t border-gray-100">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-xs text-gray-500">備考メモ</p>
-                      {editingId !== history.id && (
-                        <button
-                          onClick={(e) => handleEditStart(history, e)}
-                          className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
-                        >
-                          ✏️ 編集
-                        </button>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <StarRating value={history.feedback.satisfactionRating} readonly size="sm" />
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${history.feedback.hasLeakage ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"}`}>
+                          照射漏れ: {history.feedback.hasLeakage ? "あり" : "なし"}
+                        </span>
+                      </div>
+                    </div>
+                    {history.feedback.comment && (
+                      <p className="text-xs text-gray-600 mt-2">「{history.feedback.comment}」</p>
+                    )}
+                    {history.feedback.hasLeakage && history.feedback.leakageDetails && (
+                      <p className="text-xs text-red-600 mt-1">⚠️ {history.feedback.leakageDetails}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* 詳細表示（展開時） */}
+                {selectedHistory?.id === history.id && (
+                  <div className="mt-3 pt-3 border-t border-gray-100 space-y-4">
+                    {/* 備考メモ */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs text-gray-500">備考メモ</p>
+                        {editingId !== history.id && (
+                          <button
+                            onClick={(e) => handleEditStart(history, e)}
+                            className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
+                          >
+                            ✏️ 編集
+                          </button>
+                        )}
+                      </div>
+
+                      {editingId === history.id ? (
+                        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                          <textarea
+                            value={editNotes}
+                            onChange={(e) => setEditNotes(e.target.value)}
+                            placeholder="メモを入力..."
+                            className="w-full p-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                            rows={3}
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={handleCancelEdit}
+                              className="px-3 py-1 text-xs text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+                            >
+                              キャンセル
+                            </button>
+                            <button
+                              onClick={(e) => handleSaveNotes(history.id, e)}
+                              className="px-3 py-1 text-xs text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                            >
+                              保存
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-700">
+                          {history.notes || <span className="text-gray-400">メモなし</span>}
+                        </p>
                       )}
                     </div>
 
-                    {editingId === history.id ? (
-                      <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
-                        <textarea
-                          value={editNotes}
-                          onChange={(e) => setEditNotes(e.target.value)}
-                          placeholder="メモを入力..."
-                          className="w-full p-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                          rows={3}
-                        />
-                        <div className="flex gap-2 justify-end">
+                    {/* フィードバック入力/編集 */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs text-gray-500">フィードバック</p>
+                        {feedbackEditingId !== history.id && (
                           <button
-                            onClick={handleCancelEdit}
-                            className="px-3 py-1 text-xs text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+                            onClick={(e) => handleFeedbackEditStart(history, e)}
+                            className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
                           >
-                            キャンセル
+                            {history.feedback ? "✏️ 編集" : "➕ 追加"}
                           </button>
-                          <button
-                            onClick={(e) => handleSaveNotes(history.id, e)}
-                            className="px-3 py-1 text-xs text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-                          >
-                            保存
-                          </button>
-                        </div>
+                        )}
                       </div>
-                    ) : (
-                      <p className="text-sm text-gray-700">
-                        {history.notes || <span className="text-gray-400">メモなし</span>}
-                      </p>
-                    )}
+
+                      {feedbackEditingId === history.id ? (
+                        <div className="space-y-3 bg-gray-50 rounded-lg p-3" onClick={(e) => e.stopPropagation()}>
+                          {/* 満足度 */}
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">満足度</p>
+                            <StarRating
+                              value={feedbackRating}
+                              onChange={(v) => setFeedbackRating(v as 1 | 2 | 3 | 4 | 5)}
+                            />
+                          </div>
+
+                          {/* 照射漏れ */}
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">照射漏れ</p>
+                            <div className="flex gap-3">
+                              <label className="flex items-center gap-1 text-sm">
+                                <input
+                                  type="radio"
+                                  checked={!feedbackHasLeakage}
+                                  onChange={() => setFeedbackHasLeakage(false)}
+                                  className="text-blue-600"
+                                />
+                                なし
+                              </label>
+                              <label className="flex items-center gap-1 text-sm">
+                                <input
+                                  type="radio"
+                                  checked={feedbackHasLeakage}
+                                  onChange={() => setFeedbackHasLeakage(true)}
+                                  className="text-blue-600"
+                                />
+                                あり
+                              </label>
+                            </div>
+                            {feedbackHasLeakage && (
+                              <textarea
+                                value={feedbackLeakageDetails}
+                                onChange={(e) => setFeedbackLeakageDetails(e.target.value)}
+                                placeholder="照射漏れの詳細を入力..."
+                                className="w-full mt-2 p-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                rows={2}
+                              />
+                            )}
+                          </div>
+
+                          {/* コメント */}
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">コメント</p>
+                            <textarea
+                              value={feedbackComment}
+                              onChange={(e) => setFeedbackComment(e.target.value)}
+                              placeholder="感想やご要望をお聞かせください..."
+                              className="w-full p-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                              rows={2}
+                            />
+                          </div>
+
+                          {/* ボタン */}
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={handleCancelFeedbackEdit}
+                              className="px-3 py-1.5 text-xs text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300"
+                            >
+                              キャンセル
+                            </button>
+                            <button
+                              onClick={(e) => handleSaveFeedback(history.id, e)}
+                              className="px-3 py-1.5 text-xs text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                            >
+                              保存
+                            </button>
+                          </div>
+                        </div>
+                      ) : !history.feedback ? (
+                        <p className="text-xs text-gray-400">フィードバック未入力</p>
+                      ) : null}
+                    </div>
                   </div>
                 )}
               </div>

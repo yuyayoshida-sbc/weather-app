@@ -6,6 +6,7 @@ import { mockProvider } from "@/lib/ai/MockProvider";
 import { saveChatHistory, loadChatHistory, clearChatHistory } from "@/utils/reservationStorage";
 import { CLINIC_INFO } from "@/data/clinic";
 import { updateCustomerAddress } from "@/data/nearbyClinics";
+import { checkCourseReminders } from "@/data/history";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import QuickActions from "./QuickActions";
@@ -28,12 +29,31 @@ export default function ChatContainer() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 初回ロード時に履歴を読み込み
+  // 初回ロード時に履歴を読み込み、リマインダーをチェック
   useEffect(() => {
     const history = loadChatHistory();
+    const messagesToSet: ChatMessageType[] = [INITIAL_MESSAGE];
+
+    // 履歴があれば追加
     if (history.length > 0) {
-      setMessages([INITIAL_MESSAGE, ...history]);
+      messagesToSet.push(...history);
     }
+
+    // コース消化リマインダーをチェック（3ヶ月経過）
+    const reminder = checkCourseReminders();
+    if (reminder) {
+      const reminderMessage: ChatMessageType = {
+        id: `reminder-${Date.now()}`,
+        role: "assistant",
+        content: reminder.message,
+        timestamp: new Date().toISOString(),
+        quickReplies: reminder.quickReplies,
+        isReminder: true,
+      };
+      messagesToSet.push(reminderMessage);
+    }
+
+    setMessages(messagesToSet);
   }, []);
 
   // メッセージが追加されたらスクロール
