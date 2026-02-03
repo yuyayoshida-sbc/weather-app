@@ -3,7 +3,7 @@ import { ClinicInfo } from "@/types/reservation";
 export const CLINIC_INFO: ClinicInfo = {
   name: "SBC Men's Flash",
   address: "東京都新宿区西新宿1-1-1 新宿ビル3F",
-  phone: "0120-XXX-XXX",
+  phone: "0120-XXX-XXX", // 従来の電話番号（非表示）
   businessHours: [
     { dayOfWeek: 0, open: "", close: "", isClosed: true },      // 日曜定休
     { dayOfWeek: 1, open: "11:00", close: "20:00", isClosed: false },
@@ -23,6 +23,10 @@ export const BUSINESS_HOURS_TEXT = `【営業時間】
 
 【定休日】
 日曜日・祝日`;
+
+// チャットサポート案内テキスト
+export const CHAT_SUPPORT_TEXT = "💬 チャットでお問い合わせ";
+export const CHAT_SUPPORT_NOTE = "予約画面のチャットからいつでもご相談いただけます";
 
 const DAY_NAMES = ["日", "月", "火", "水", "木", "金", "土"];
 

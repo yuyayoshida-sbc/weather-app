@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChatMessage as ChatMessageType, TimeSlot, MenuOption, BookingConfirmation, WaitlistEntry } from "@/types/reservation";
+import { ChatMessage as ChatMessageType, TimeSlot, MenuOption, BookingConfirmation, WaitlistEntry, ClinicAvailability } from "@/types/reservation";
 import DatePicker from "./DatePicker";
 
 interface ChatMessageProps {
@@ -18,6 +18,8 @@ interface ChatMessageProps {
   onCustomerFormSubmit?: (name: string, phone: string) => void;
   onWaitlistConfirm?: (entry: WaitlistEntry) => void;
   onWaitlistCancel?: () => void;
+  onClinicTimeSelect?: (clinicId: string, time: string) => void;
+  onAddressSubmit?: (homeStation: string, workStation: string) => void;
 }
 
 export default function ChatMessage({
@@ -33,12 +35,17 @@ export default function ChatMessage({
   onPayLater,
   onCustomerFormSubmit,
   onWaitlistConfirm,
-  onWaitlistCancel
+  onWaitlistCancel,
+  onClinicTimeSelect,
+  onAddressSubmit
 }: ChatMessageProps) {
   const isUser = message.role === "user";
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [formName, setFormName] = useState("");
   const [formPhone, setFormPhone] = useState("");
+  const [homeStation, setHomeStation] = useState("");
+  const [workStation, setWorkStation] = useState("");
+  const [expandedClinic, setExpandedClinic] = useState<string | null>(null);
 
   // 決済処理のハンドラー
   const handlePayment = (booking: BookingConfirmation) => {
@@ -382,11 +389,128 @@ export default function ChatMessage({
           </div>
         )}
 
+        {/* 住所入力フォーム（当日予約用） */}
+        {message.showAddressForm && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
+              <h3 className="text-sm font-bold text-purple-800 mb-3 flex items-center gap-2">
+                📍 最寄り駅を教えてください
+              </h3>
+              <p className="text-xs text-purple-600 mb-3">
+                1時間圏内のクリニックの空き状況をお調べします
+              </p>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">自宅の最寄り駅</label>
+                  <input
+                    type="text"
+                    value={homeStation}
+                    onChange={(e) => setHomeStation(e.target.value)}
+                    placeholder="例：池袋"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">職場の最寄り駅（任意）</label>
+                  <input
+                    type="text"
+                    value={workStation}
+                    onChange={(e) => setWorkStation(e.target.value)}
+                    placeholder="例：品川"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (homeStation.trim()) {
+                    onAddressSubmit?.(homeStation.trim(), workStation.trim());
+                  }
+                }}
+                disabled={!homeStation.trim()}
+                className="w-full mt-4 px-4 py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                🔍 近くのクリニックを探す
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 近隣クリニック空き状況（当日予約用） */}
+        {message.showNearbyClinicSlots && message.showNearbyClinicSlots.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
+              <h3 className="text-sm font-bold text-purple-800 mb-3 flex items-center gap-2">
+                🏥 本日空きのあるクリニック
+              </h3>
+
+              <div className="space-y-2">
+                {message.showNearbyClinicSlots.map((clinic: ClinicAvailability) => (
+                  <div
+                    key={clinic.clinicId}
+                    className="bg-white rounded-lg border border-purple-200 overflow-hidden"
+                  >
+                    <button
+                      onClick={() => setExpandedClinic(
+                        expandedClinic === clinic.clinicId ? null : clinic.clinicId
+                      )}
+                      className="w-full p-3 text-left hover:bg-purple-50 transition-colors"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium text-gray-800 text-sm">{clinic.clinicName}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            🚃 {clinic.station}駅
+                            <span className="ml-2 text-purple-600">
+                              {clinic.travelFrom === "home" ? "自宅" : "職場"}から約{clinic.travelTime}分
+                            </span>
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                            空き{clinic.availableSlots.length}枠
+                          </span>
+                          <span className="text-purple-600">
+                            {expandedClinic === clinic.clinicId ? "▲" : "▼"}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+
+                    {expandedClinic === clinic.clinicId && (
+                      <div className="px-3 pb-3 border-t border-purple-100">
+                        <p className="text-xs text-gray-500 mt-2 mb-2">時間を選択：</p>
+                        <div className="grid grid-cols-4 gap-2">
+                          {clinic.availableSlots.map((slot) => (
+                            <button
+                              key={slot.time}
+                              onClick={() => onClinicTimeSelect?.(clinic.clinicId, slot.time)}
+                              className="px-2 py-2 text-sm bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors font-medium"
+                            >
+                              {slot.time}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-2">
+                          📍 {clinic.address}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* タイムスタンプ */}
         <div
           className={`text-xs mt-2 ${
             isUser ? "text-blue-200" : "text-gray-400"
           }`}
+          suppressHydrationWarning
         >
           {new Date(message.timestamp).toLocaleTimeString("ja-JP", {
             hour: "2-digit",

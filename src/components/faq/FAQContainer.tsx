@@ -163,11 +163,12 @@ export default function FAQContainer() {
             <p className="text-sm text-gray-600 mb-2">
               お探しの内容が見つからない場合
             </p>
-            <p className="text-sm text-gray-700">
-              お電話でお問い合わせください
-              <br />
-              <span className="font-medium text-blue-600">{CLINIC_INFO.phone}</span>
-            </p>
+            <a
+              href="/reservation"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              💬 チャットで相談する
+            </a>
           </div>
         </section>
       </div>

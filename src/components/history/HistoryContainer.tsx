@@ -1,16 +1,49 @@
 "use client";
 
-import { useState } from "react";
-import { TREATMENT_HISTORY, DOWNTIME_CARE, getTreatmentCount, getLastTreatmentDate } from "@/data/history";
+import { useState, useEffect } from "react";
+import { TREATMENT_HISTORY, DOWNTIME_CARE, getTreatmentCount, getLastTreatmentDate, updateTreatmentNotes, getUnusedCourses, CourseContract } from "@/data/history";
 import { CLINIC_INFO } from "@/data/clinic";
 import { TreatmentHistory } from "@/types/reservation";
 
 export default function HistoryContainer() {
   const [selectedHistory, setSelectedHistory] = useState<TreatmentHistory | null>(null);
   const [showDowntime, setShowDowntime] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNotes, setEditNotes] = useState("");
+  const [historyData, setHistoryData] = useState<TreatmentHistory[]>([]);
+  const [unusedCourses, setUnusedCourses] = useState<CourseContract[]>([]);
+
+  // 初期化時に履歴データを設定
+  useEffect(() => {
+    setHistoryData([...TREATMENT_HISTORY]);
+    setUnusedCourses(getUnusedCourses());
+  }, []);
 
   const treatmentCount = getTreatmentCount();
   const lastDate = getLastTreatmentDate();
+
+  // 備考の編集を開始
+  const handleEditStart = (history: TreatmentHistory, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(history.id);
+    setEditNotes(history.notes || "");
+  };
+
+  // 備考の保存
+  const handleSaveNotes = (historyId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    updateTreatmentNotes(historyId, editNotes);
+    setHistoryData([...TREATMENT_HISTORY]);
+    setEditingId(null);
+    setEditNotes("");
+  };
+
+  // 編集のキャンセル
+  const handleCancelEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(null);
+    setEditNotes("");
+  };
 
   // 日付をフォーマット
   const formatDate = (dateStr: string) => {
@@ -43,16 +76,41 @@ export default function HistoryContainer() {
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-blue-50 rounded-xl p-3 text-center">
               <p className="text-xs text-gray-500 mb-1">施術回数</p>
-              <p className="text-2xl font-bold text-blue-600">{treatmentCount}<span className="text-sm ml-1">回</span></p>
+              <p className="text-2xl font-bold text-blue-600" suppressHydrationWarning>{treatmentCount}<span className="text-sm ml-1">回</span></p>
             </div>
             <div className="bg-blue-50 rounded-xl p-3 text-center">
               <p className="text-xs text-gray-500 mb-1">最終施術日</p>
-              <p className="text-sm font-bold text-blue-600">
+              <p className="text-sm font-bold text-blue-600" suppressHydrationWarning>
                 {lastDate ? `${lastDate.getMonth() + 1}/${lastDate.getDate()}` : "-"}
               </p>
             </div>
           </div>
         </section>
+
+        {/* 未消化コース表示 */}
+        {unusedCourses.length > 0 && (
+          <section className="bg-green-50 rounded-2xl p-4 border border-green-200">
+            <h2 className="text-sm font-bold text-green-800 mb-3 flex items-center gap-2">
+              <span>🎫</span>
+              未消化コース
+            </h2>
+            <div className="space-y-2">
+              {unusedCourses.map((course) => (
+                <div key={course.id} className="bg-white rounded-xl p-3">
+                  <p className="font-medium text-gray-800 text-sm">{course.courseName}</p>
+                  <div className="flex justify-between items-center mt-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">残り</span>
+                      <span className="text-lg font-bold text-green-600">{course.remainingSessions}</span>
+                      <span className="text-xs text-gray-500">/ {course.totalSessions}回</span>
+                    </div>
+                    <span className="text-xs text-gray-400">有効期限: {formatDate(course.expiryDate).split("（")[0]}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ダウンタイムケアボタン */}
         <button
@@ -104,7 +162,12 @@ export default function HistoryContainer() {
 
             <div className="bg-red-50 rounded-lg p-3 border border-red-200">
               <p className="text-xs text-red-700">{DOWNTIME_CARE.emergencyContact}</p>
-              <p className="text-sm font-medium text-red-800 mt-1">📞 {CLINIC_INFO.phone}</p>
+              <a
+                href="/reservation"
+                className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+              >
+                💬 チャットで相談
+              </a>
             </div>
           </section>
         )}
@@ -113,7 +176,7 @@ export default function HistoryContainer() {
         <section>
           <h2 className="text-sm font-bold text-gray-800 mb-3">施術履歴一覧</h2>
           <div className="space-y-2">
-            {TREATMENT_HISTORY.slice().reverse().map((history) => (
+            {historyData.slice().reverse().map((history) => (
               <button
                 key={history.id}
                 onClick={() => setSelectedHistory(selectedHistory?.id === history.id ? null : history)}
@@ -137,10 +200,49 @@ export default function HistoryContainer() {
                 </div>
 
                 {/* 詳細表示 */}
-                {selectedHistory?.id === history.id && history.notes && (
+                {selectedHistory?.id === history.id && (
                   <div className="mt-3 pt-3 border-t border-gray-100">
-                    <p className="text-xs text-gray-500">備考</p>
-                    <p className="text-sm text-gray-700 mt-1">{history.notes}</p>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs text-gray-500">備考メモ</p>
+                      {editingId !== history.id && (
+                        <button
+                          onClick={(e) => handleEditStart(history, e)}
+                          className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
+                        >
+                          ✏️ 編集
+                        </button>
+                      )}
+                    </div>
+
+                    {editingId === history.id ? (
+                      <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                        <textarea
+                          value={editNotes}
+                          onChange={(e) => setEditNotes(e.target.value)}
+                          placeholder="メモを入力..."
+                          className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                          rows={3}
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            onClick={handleCancelEdit}
+                            className="px-3 py-1 text-xs text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+                          >
+                            キャンセル
+                          </button>
+                          <button
+                            onClick={(e) => handleSaveNotes(history.id, e)}
+                            className="px-3 py-1 text-xs text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                          >
+                            保存
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-700">
+                        {history.notes || <span className="text-gray-400">メモなし</span>}
+                      </p>
+                    )}
                   </div>
                 )}
               </button>
@@ -149,7 +251,7 @@ export default function HistoryContainer() {
         </section>
 
         {/* 履歴がない場合 */}
-        {TREATMENT_HISTORY.length === 0 && (
+        {historyData.length === 0 && (
           <div className="bg-gray-50 rounded-2xl p-6 text-center">
             <p className="text-gray-500 text-sm">施術履歴がありません</p>
           </div>
@@ -161,9 +263,12 @@ export default function HistoryContainer() {
             <p className="text-sm text-gray-600 mb-2">
               履歴に関するお問い合わせ
             </p>
-            <p className="text-sm text-gray-700">
-              <span className="font-medium text-blue-600">{CLINIC_INFO.phone}</span>
-            </p>
+            <a
+              href="/reservation"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              💬 チャットで相談する
+            </a>
           </div>
         </section>
       </div>

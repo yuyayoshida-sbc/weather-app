@@ -5,6 +5,7 @@ import { ChatMessage as ChatMessageType } from "@/types/reservation";
 import { mockProvider } from "@/lib/ai/MockProvider";
 import { saveChatHistory, loadChatHistory, clearChatHistory } from "@/utils/reservationStorage";
 import { CLINIC_INFO } from "@/data/clinic";
+import { updateCustomerAddress } from "@/data/nearbyClinics";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import QuickActions from "./QuickActions";
@@ -81,6 +82,8 @@ export default function ChatContainer() {
         showCustomerForm: response.showCustomerForm,
         showWaitlistConfirm: response.showWaitlistConfirm,
         showIntervalWarning: response.showIntervalWarning,
+        showNearbyClinicSlots: response.showNearbyClinicSlots,
+        showAddressForm: response.showAddressForm,
       };
 
       const updatedMessages = [...newMessages, assistantMessage];
@@ -170,6 +173,18 @@ export default function ChatContainer() {
     sendMessage("別の時間を選びたい");
   };
 
+  // 近隣クリニックの時間選択
+  const handleClinicTimeSelect = (clinicId: string, time: string) => {
+    sendMessage(`近隣クリニック予約_${clinicId}_${time}`);
+  };
+
+  // 住所入力送信
+  const handleAddressSubmit = (homeStation: string, workStation: string) => {
+    // 顧客住所を更新
+    updateCustomerAddress({ homeStation, workStation: workStation || undefined });
+    sendMessage(`住所入力完了_${homeStation}_${workStation}`);
+  };
+
   // チャットをリセット
   const handleReset = () => {
     clearChatHistory();
@@ -215,6 +230,8 @@ export default function ChatContainer() {
             onWaitlistSelect={handleWaitlistSelect}
             onWaitlistConfirm={handleWaitlistConfirm}
             onWaitlistCancel={handleWaitlistCancel}
+            onClinicTimeSelect={handleClinicTimeSelect}
+            onAddressSubmit={handleAddressSubmit}
           />
         ))}
 

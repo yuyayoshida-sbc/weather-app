@@ -66,6 +66,34 @@ export interface ClinicInfo {
   slotDuration: number;   // 予約枠の単位（分）
 }
 
+// 近隣クリニック情報（拡張版）
+export interface NearbyClinic {
+  id: string;
+  name: string;
+  address: string;
+  station: string;              // 最寄り駅
+  travelTimeFromHome?: number;  // 自宅からの所要時間（分）
+  travelTimeFromWork?: number;  // 職場からの所要時間（分）
+  todaySlots: TimeSlot[];       // 本日の空き状況
+}
+
+// クリニック空き状況（当日予約用）
+export interface ClinicAvailability {
+  clinicId: string;
+  clinicName: string;
+  address: string;
+  station: string;
+  travelTime: number;           // 所要時間（分）
+  travelFrom: "home" | "work";  // どこからの所要時間か
+  availableSlots: TimeSlot[];
+}
+
+// 顧客住所情報
+export interface CustomerAddress {
+  homeStation?: string;         // 自宅最寄り駅
+  workStation?: string;         // 職場最寄り駅
+}
+
 // メニュー選択肢
 export interface MenuOption {
   id: string;
@@ -126,6 +154,8 @@ export interface ChatMessage {
   showCustomerForm?: boolean;  // 顧客情報入力フォーム表示
   showWaitlistConfirm?: WaitlistEntry;  // キャンセル待ち確認表示
   showIntervalWarning?: boolean;  // 施術間隔警告表示
+  showNearbyClinicSlots?: ClinicAvailability[];  // 近隣クリニック空き状況
+  showAddressForm?: boolean;  // 住所入力フォーム表示
 }
 
 // 会話の状態

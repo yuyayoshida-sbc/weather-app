@@ -1,7 +1,36 @@
 import { TreatmentHistory } from "@/types/reservation";
 
+// コース契約情報（未消化分の管理）
+export interface CourseContract {
+  id: string;
+  courseName: string;        // コース名
+  totalSessions: number;     // 総回数
+  usedSessions: number;      // 使用済み回数
+  remainingSessions: number; // 残り回数
+  startDate: string;         // 契約開始日
+  expiryDate: string;        // 有効期限
+}
+
+// ダミーコース契約データ
+export const COURSE_CONTRACTS: CourseContract[] = [
+  {
+    id: "course-001",
+    courseName: "ヒゲ脱毛 三部位 6回コース",
+    totalSessions: 6,
+    usedSessions: 4,
+    remainingSessions: 2,
+    startDate: "2025-01-15",
+    expiryDate: "2026-01-14",
+  },
+];
+
+// 未消化コースを取得
+export function getUnusedCourses(): CourseContract[] {
+  return COURSE_CONTRACTS.filter(course => course.remainingSessions > 0);
+}
+
 // ダミー施術履歴データ
-export const TREATMENT_HISTORY: TreatmentHistory[] = [
+export let TREATMENT_HISTORY: TreatmentHistory[] = [
   {
     id: "hist-001",
     date: "2025-01-15",
@@ -65,6 +94,18 @@ export function checkTreatmentInterval(): { isWarning: boolean; daysSinceLast: n
 // 施術回数を取得
 export function getTreatmentCount(): number {
   return TREATMENT_HISTORY.length;
+}
+
+// 施術履歴の備考を更新
+export function updateTreatmentNotes(historyId: string, notes: string): boolean {
+  const index = TREATMENT_HISTORY.findIndex(h => h.id === historyId);
+  if (index === -1) return false;
+
+  TREATMENT_HISTORY[index] = {
+    ...TREATMENT_HISTORY[index],
+    notes,
+  };
+  return true;
 }
 
 // ダウンタイム注意事項

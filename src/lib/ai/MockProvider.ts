@@ -2,7 +2,8 @@ import { AIProvider, AIMessage, AIResponse, AIProviderConfig } from "./types";
 import { getPopularMenus, formatPrice, getPriceListText, AREA_LABELS, AREA_TYPES, PRICE_TABLE } from "@/data/menus";
 import { CLINIC_INFO, BUSINESS_HOURS_TEXT } from "@/data/clinic";
 import { findFAQByKeyword } from "@/data/faq";
-import { checkTreatmentInterval } from "@/data/history";
+import { checkTreatmentInterval, getUnusedCourses } from "@/data/history";
+import { getNearbyClinicAvailability, getClinicName, updateCustomerAddress, getCustomerAddress } from "@/data/nearbyClinics";
 import { MenuOption, TimeSlot, BookingConfirmation, WaitlistEntry } from "@/types/reservation";
 
 // サンプル顧客データ（実際は診察券番号から取得）
@@ -27,6 +28,65 @@ export class MockAIProvider implements AIProvider {
 
   private generateResponse(input: string): AIResponse {
     // ========== 最優先チェック（予約フロー中の入力）==========
+
+    // 近隣クリニック予約
+    if (this.matchAny(input, ["近隣クリニック予約_"])) {
+      const match = input.match(/近隣クリニック予約_([^_]+)_(\d{1,2}:\d{2})/);
+      if (match) {
+        const clinicId = match[1];
+        const selectedTime = match[2];
+        const clinicName = getClinicName(clinicId);
+
+        const anesthesiaOptions: MenuOption[] = [
+          { id: "with_anesthesia", label: "麻酔クリームあり", value: `${selectedTime}予約確定_麻酔あり_${clinicId}`, price: "+¥3,000" },
+          { id: "without_anesthesia", label: "麻酔クリームなし", value: `${selectedTime}予約確定_麻酔なし_${clinicId}`, price: "" },
+        ];
+
+        return {
+          content: `${clinicName}
+${selectedTime}ですね。
+
+強力麻酔クリームはご利用になりますか？
+痛みが心配な方におすすめです。`,
+          menuOptions: anesthesiaOptions
+        };
+      }
+    }
+
+    // 住所入力完了 → 近隣クリニック表示
+    if (this.matchAny(input, ["住所入力完了_"])) {
+      const match = input.match(/住所入力完了_([^_]+)_?(.*)?/);
+      if (match) {
+        const homeStation = match[1];
+        const workStation = match[2] || "";
+
+        // 住所を更新
+        updateCustomerAddress({
+          homeStation,
+          workStation: workStation || undefined
+        });
+
+        // 近隣クリニックの空き状況を取得
+        const nearbyClinicSlots = getNearbyClinicAvailability();
+
+        if (nearbyClinicSlots.length === 0) {
+          return {
+            content: `申し訳ございません。
+${homeStation}駅周辺（1時間圏内）で本日空きのあるクリニックが見つかりませんでした。
+
+明日以降の日程をご検討いただけますか？`,
+            showCalendar: true
+          };
+        }
+
+        return {
+          content: `${homeStation}駅${workStation ? `・${workStation}駅` : ""}周辺で、本日空きのあるクリニックをお調べしました！
+
+ご都合の良いクリニック・時間をお選びください。`,
+          showNearbyClinicSlots: nearbyClinicSlots
+        };
+      }
+    }
 
     // 時間選択（「11:00でお願いします」など）- 最優先
     if (this.matchAny(input, ["でお願いします", ":00で", ":30で"])) {
@@ -139,10 +199,10 @@ export class MockAIProvider implements AIProvider {
 RES-${Date.now().toString().slice(-8)}
 
 当日は予約時間の5分前までにご来院ください。
-ご不明な点がございましたら、お気軽にお問い合わせください。
+ご不明な点がございましたら、このチャットでお気軽にお問い合わせください。
 
 ${CLINIC_INFO.name}
-📞 ${CLINIC_INFO.phone}`
+💬 チャットサポート対応中`
       };
     }
 
@@ -157,10 +217,10 @@ RES-${Date.now().toString().slice(-8)}
 お支払いは当日、ご来院時にお願いいたします。
 
 当日は予約時間の5分前までにご来院ください。
-ご不明な点がございましたら、お気軽にお問い合わせください。
+ご不明な点がございましたら、このチャットでお気軽にお問い合わせください。
 
 ${CLINIC_INFO.name}
-📞 ${CLINIC_INFO.phone}`
+💬 チャットサポート対応中`
       };
     }
 
@@ -240,12 +300,11 @@ WL-${Date.now().toString().slice(-8)}
 【待機順位】
 #1番目
 
-キャンセルが発生次第、お電話にてご連絡いたします。
-連絡がつかない場合は次の方に順番が回りますので、
-お電話には必ずご対応ください。
+キャンセルが発生次第、このチャットでご連絡いたします。
+通知にお気をつけください。
 
 ${CLINIC_INFO.name}
-📞 ${CLINIC_INFO.phone}`
+💬 チャットサポート対応中`
       };
     }
 
@@ -273,8 +332,55 @@ ${CLINIC_INFO.name}
       };
     }
 
+    // 当日予約の場合 → 住所入力または直接近隣クリニック表示
+    if (this.matchAny(input, ["今日の空き時間を見たい"])) {
+      const customerAddress = getCustomerAddress();
+
+      // 既に住所が登録されている場合は直接近隣クリニックを表示
+      if (customerAddress.homeStation) {
+        const nearbyClinicSlots = getNearbyClinicAvailability();
+
+        if (nearbyClinicSlots.length === 0) {
+          // 当院の空き状況を表示
+          const timeSlots: TimeSlot[] = [
+            { time: "11:00", available: true },
+            { time: "11:30", available: false },
+            { time: "12:00", available: false },
+            { time: "14:00", available: true },
+            { time: "15:00", available: false },
+            { time: "17:00", available: true },
+          ];
+
+          return {
+            content: `本日の当院（${CLINIC_INFO.name}）の空き状況です。
+
+ご希望の時間をタップしてください。`,
+            timeSlots
+          };
+        }
+
+        return {
+          content: `本日の予約ですね！
+
+${customerAddress.homeStation}駅${customerAddress.workStation ? `・${customerAddress.workStation}駅` : ""}周辺で空きのあるクリニックをお調べしました。
+
+ご都合の良いクリニック・時間をお選びください。`,
+          showNearbyClinicSlots: nearbyClinicSlots
+        };
+      }
+
+      // 住所が未登録の場合は住所入力フォームを表示
+      return {
+        content: `本日の予約ですね！
+
+当院以外にも、お近くのクリニックの空き状況をお調べできます。
+最寄り駅を教えていただけますか？`,
+        showAddressForm: true
+      };
+    }
+
     // 日付選択（カレンダーから「2月5日（水）を予約」など）- 優先
-    if (/\d{1,2}月\d{1,2}日/.test(input) || this.matchAny(input, ["空き時間を見たい", "今週末の"])) {
+    if (/\d{1,2}月\d{1,2}日/.test(input) || this.matchAny(input, ["明日の空き時間を見たい", "明後日の空き時間を見たい", "今週末の空き時間を見たい", "今週末の"])) {
       const timeSlots: TimeSlot[] = [
         { time: "11:00", available: true },
         { time: "11:30", available: true },
@@ -338,12 +444,38 @@ ${CLINIC_INFO.name}
       };
     }
 
+    // コース未消化分の消化を選択
+    if (this.matchAny(input, ["未消化コースを消化", "コース消化"])) {
+      const dateOptions: MenuOption[] = [
+        { id: "today", label: "今日", value: "今日の空き時間を見たい" },
+        { id: "tomorrow", label: "明日", value: "明日の空き時間を見たい" },
+        { id: "day_after", label: "明後日", value: "明後日の空き時間を見たい" },
+        { id: "this_weekend", label: "今週末", value: "今週末の空き時間を見たい" },
+      ];
+
+      return {
+        content: `未消化コースの予約ですね！
+追加料金なしでご利用いただけます。
+
+ご希望の日程をお選びください。
+カレンダーから日付を選ぶこともできます。
+
+※強力麻酔クリーム（+¥3,000/回）もご利用いただけます。`,
+        menuOptions: dateOptions,
+        showCalendar: true
+      };
+    }
+
     // 予約したい（部位選択へ）- 施術間隔チェック付き
     if (this.matchAny(input, ["予約したい", "よやくしたい", "取りたい", "行きたい", "受けたい", "申し込み"])) {
       // 施術間隔チェック
       const intervalCheck = checkTreatmentInterval();
 
-      const menuOptions: MenuOption[] = [
+      // 未消化コースをチェック
+      const unusedCourses = getUnusedCourses();
+
+      // 基本メニューオプション
+      const baseMenuOptions: MenuOption[] = [
         { id: "three", label: "三部位（鼻下・アゴ・アゴ下）", value: "三部位を希望", price: "¥9,800〜 ← 一番人気！" },
         { id: "cheek", label: "もみあげ・頬", value: "もみあげ・頬を希望", price: "¥8,800〜" },
         { id: "neck", label: "首", value: "首を希望", price: "¥6,800〜" },
@@ -353,24 +485,39 @@ ${CLINIC_INFO.name}
         { id: "all", label: "全部位", value: "全部位を希望", price: "¥19,800〜 ← しっかり脱毛" },
       ];
 
+      // 未消化コースがある場合は一番上に追加
+      let menuOptions: MenuOption[] = baseMenuOptions;
+      let unusedCourseMessage = "";
+
+      if (unusedCourses.length > 0) {
+        const courseOptions: MenuOption[] = unusedCourses.map((course, idx) => ({
+          id: `unused_${idx}`,
+          label: `🎫 ${course.courseName}（残り${course.remainingSessions}回）`,
+          value: "未消化コースを消化",
+          price: "← おすすめ！追加料金なし"
+        }));
+        menuOptions = [...courseOptions, ...baseMenuOptions];
+        unusedCourseMessage = `\n🎫 未消化のコースがあります！\n追加料金なしでご利用いただけます。\n`;
+      }
+
       // 間隔が短い場合は警告を表示
       if (intervalCheck.isWarning && intervalCheck.daysSinceLast !== null) {
         return {
-          content: `ご予約ですね。ありがとうございます！
+          content: `ご予約ですね。ありがとうございます！${unusedCourseMessage}
 
 ⚠️ 前回の施術から${intervalCheck.daysSinceLast}日です。
 効果を最大限に発揮するため、4週間（28日）以上の間隔をおすすめしております。
 
-それでもご予約を続ける場合は、脱毛したい部位をお選びください。`,
+それでもご予約を続ける場合は、メニューをお選びください。`,
           menuOptions,
           showIntervalWarning: true
         };
       }
 
       return {
-        content: `ご予約ですね。ありがとうございます！
+        content: `ご予約ですね。ありがとうございます！${unusedCourseMessage}
 
-まず、脱毛したい部位をお選びください。`,
+メニューをお選びください。`,
         menuOptions
       };
     }
@@ -513,7 +660,7 @@ ${CLINIC_INFO.address}
 
 JR新宿駅西口より徒歩5分です。
 
-お電話：${CLINIC_INFO.phone}`
+💬 ご不明な点はこのチャットでお気軽にどうぞ！`
       };
     }
 
@@ -576,7 +723,7 @@ JR新宿駅西口より徒歩5分です。
 ・「麻酔について」→ 麻酔のご案内
 ・「何回で効果出る？」→ 効果の目安
 
-または、お電話（${CLINIC_INFO.phone}）でもお問い合わせいただけます。`
+他にご不明な点がございましたら、このチャットでお気軽にお尋ねください！`
     };
   }
 
