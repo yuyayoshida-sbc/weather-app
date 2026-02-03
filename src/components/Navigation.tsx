@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const NAV_ITEMS = [
   { href: "/", label: "天気", icon: "🌤️" },
   { href: "/reservation", label: "予約", icon: "📅" },
+  { href: "/faq", label: "FAQ", icon: "❓" },
 ];
 
 export default function Navigation() {
@@ -23,7 +24,7 @@ export default function Navigation() {
                 href={item.href}
                 className={`flex flex-col items-center gap-1 px-6 py-2 rounded-lg transition-colors ${
                   isActive
-                    ? "text-rose-500"
+                    ? "text-blue-600"
                     : "text-gray-500 hover:text-gray-700"
                 }`}
               >
