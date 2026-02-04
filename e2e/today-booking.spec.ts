@@ -1,11 +1,22 @@
 import { test, expect } from '@playwright/test';
 
+// 認証をスキップしてゲストとして続行するヘルパー
+async function skipAuthAsGuest(page: import('@playwright/test').Page) {
+  const skipButton = page.getByRole('button', { name: /初めての方/ });
+  await expect(skipButton).toBeVisible();
+  await skipButton.click();
+  await page.waitForTimeout(500);
+}
+
 test.describe('当日予約機能', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/reservation');
   });
 
   test('予約フローで「今日」を選択すると住所入力フォームが表示される', async ({ page }) => {
+    // ゲストとして続行
+    await skipAuthAsGuest(page);
+
     // 予約するボタンをクリック（QuickActionsの「📅 予約する」を使用）
     await page.getByRole('button', { name: '📅 予約する' }).click();
     await page.waitForTimeout(1000);
@@ -34,6 +45,9 @@ test.describe('当日予約機能', () => {
   });
 
   test('住所入力後に近隣クリニックの空き状況が表示される', async ({ page }) => {
+    // ゲストとして続行
+    await skipAuthAsGuest(page);
+
     // チャット入力で直接テスト
     const input = page.getByPlaceholder('ご質問やご予約内容を入力...');
     await input.fill('今日の空き時間を見たい');

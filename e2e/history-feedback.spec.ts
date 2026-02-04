@@ -75,9 +75,21 @@ test.describe('履歴機能拡充', () => {
   });
 });
 
+// 診察券番号で認証するヘルパー
+async function authenticateWithPatientNumber(page: import('@playwright/test').Page, patientNumber: string) {
+  const input = page.getByPlaceholder('SBC-123456');
+  await expect(input).toBeVisible();
+  await input.fill(patientNumber);
+  await page.getByRole('button', { name: '確認する' }).click();
+  await page.waitForTimeout(500);
+}
+
 test.describe('コース消化リマインダー', () => {
   test('3ヶ月経過したコースがある場合、チャットにリマインダーが表示される', async ({ page }) => {
     await page.goto('/reservation');
+
+    // 既存顧客（SBC太郎、残り2回のコース持ち）として認証
+    await authenticateWithPatientNumber(page, 'SBC-123456');
 
     // リマインダーメッセージが表示される
     await expect(page.getByText(/施術から約.*ヶ月が経過しました/)).toBeVisible();
@@ -88,6 +100,9 @@ test.describe('コース消化リマインダー', () => {
 
   test('リマインダーに「予約する」クイック返信が表示される', async ({ page }) => {
     await page.goto('/reservation');
+
+    // 既存顧客として認証
+    await authenticateWithPatientNumber(page, 'SBC-123456');
 
     // 「予約する」ボタンが表示される（exact: trueで完全一致）
     await expect(page.getByRole('button', { name: '予約する', exact: true })).toBeVisible();
