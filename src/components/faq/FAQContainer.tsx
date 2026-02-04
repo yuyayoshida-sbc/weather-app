@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { FAQ_DATA, FAQItem, findFAQByKeyword } from "@/data/faq";
 import { CLINIC_INFO } from "@/data/clinic";
 
@@ -48,9 +49,9 @@ export default function FAQContainer() {
     <div className="flex flex-col h-full bg-gradient-to-b from-blue-50 to-white">
       {/* ヘッダー */}
       <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
-        <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-lg">
+        <Link href="/reservation" className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-lg hover:bg-blue-700 transition-colors" title="予約チャットに戻る">
           ❓
-        </div>
+        </Link>
         <div>
           <h1 className="font-semibold text-gray-800">よくある質問</h1>
           <p className="text-xs text-gray-500">{CLINIC_INFO.name}</p>

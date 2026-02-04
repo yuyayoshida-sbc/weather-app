@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { ChatMessage as ChatMessageType } from "@/types/reservation";
 import { CustomerSession } from "@/types/customer";
 import { mockProvider, setCurrentSession } from "@/lib/ai/MockProvider";
@@ -359,9 +360,9 @@ export default function ChatContainer() {
       {/* ヘッダー */}
       <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-lg">
+          <Link href="/reservation" className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-lg hover:bg-blue-700 transition-colors" title="予約チャットに戻る">
             ⚡
-          </div>
+          </Link>
           <div>
             <h1 className="font-semibold text-gray-800">{CLINIC_INFO.name}</h1>
             <p className="text-xs text-gray-500">

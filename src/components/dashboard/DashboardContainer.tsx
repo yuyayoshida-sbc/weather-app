@@ -100,7 +100,12 @@ export default function DashboardContainer() {
       {/* ヘッダー */}
       <header className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-6">
         <div className="max-w-2xl mx-auto">
-          <h1 className="text-xl font-bold">マイページ</h1>
+          <div className="flex items-center gap-3">
+            <Link href="/reservation" className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white text-lg hover:bg-white/30 transition-colors" title="予約チャットに戻る">
+              🏠
+            </Link>
+            <h1 className="text-xl font-bold">マイページ</h1>
+          </div>
           {isAuthenticated ? (
             <p className="text-blue-100 text-sm mt-1">
               {customerName}様、こんにちは
