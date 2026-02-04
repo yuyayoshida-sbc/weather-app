@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: "/", label: "天気", icon: "🌤️" },
   { href: "/reservation", label: "予約", icon: "📅" },
   { href: "/history", label: "履歴", icon: "📋" },
+  { href: "/dashboard", label: "マイページ", icon: "👤" },
   { href: "/faq", label: "FAQ", icon: "❓" },
 ];
 
@@ -23,7 +24,7 @@ export default function Navigation() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center gap-1 px-6 py-2 rounded-lg transition-colors ${
+                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
                   isActive
                     ? "text-blue-600"
                     : "text-gray-500 hover:text-gray-700"
