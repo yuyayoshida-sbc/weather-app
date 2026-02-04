@@ -80,7 +80,7 @@ async function authenticateWithPatientNumber(page: import('@playwright/test').Pa
   const input = page.getByPlaceholder('SBC-123456');
   await expect(input).toBeVisible();
   await input.fill(patientNumber);
-  await page.getByRole('button', { name: '確認する' }).click();
+  await page.getByRole('button', { name: 'ログイン' }).click();
   await page.waitForTimeout(500);
 }
 

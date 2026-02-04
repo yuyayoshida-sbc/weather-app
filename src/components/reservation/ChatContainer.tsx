@@ -147,7 +147,7 @@ export default function ChatContainer() {
   }, [messages]);
 
   // 診察券番号で認証
-  const handlePatientNumberSubmit = (patientNumber: string) => {
+  const handlePatientNumberSubmit = (patientNumber: string, _rememberMe: boolean) => {
     setIsAuthenticating(true);
     setAuthError("");
 
@@ -328,8 +328,21 @@ export default function ChatContainer() {
     sendMessage(`住所入力完了_${homeStation}_${workStation}`);
   };
 
-  // チャットをリセット
-  const handleReset = () => {
+  // チャット会話のみリセット（ログイン状態は維持）
+  const handleClearChat = () => {
+    clearChatHistory();
+    if (customerSession) {
+      // ログイン中の場合は認証済みメッセージから再開
+      const unusedCourses = getCustomerUnusedCourses(customerSession.customerId);
+      setMessages([createAuthenticatedMessage(customerSession.customerName, unusedCourses.length)]);
+    } else {
+      // ゲストの場合はゲストメッセージから再開
+      setMessages([GUEST_INITIAL_MESSAGE]);
+    }
+  };
+
+  // ログアウト（チャットもリセット）
+  const handleLogout = () => {
     clearChatHistory();
     clearCustomerSession();
     setCurrentSession(null);
@@ -356,12 +369,24 @@ export default function ChatContainer() {
             </p>
           </div>
         </div>
-        <button
-          onClick={handleReset}
-          className="text-xs text-gray-500 hover:text-blue-500 transition-colors"
-        >
-          リセット
-        </button>
+        <div className="flex items-center gap-2">
+          {!showAuthForm && (
+            <button
+              onClick={handleClearChat}
+              className="text-xs text-gray-500 hover:text-blue-500 transition-colors px-2 py-1"
+            >
+              会話リセット
+            </button>
+          )}
+          {customerSession && (
+            <button
+              onClick={handleLogout}
+              className="text-xs text-red-500 hover:text-red-600 transition-colors px-2 py-1"
+            >
+              ログアウト
+            </button>
+          )}
+        </div>
       </header>
 
       {/* メッセージエリア */}

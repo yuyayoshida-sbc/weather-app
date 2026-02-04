@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import {
+  loadRememberedPatientNumber,
+  saveRememberedPatientNumber,
+  clearRememberedPatientNumber,
+} from "@/utils/customerSession";
 
 interface PatientNumberInputProps {
-  onSubmit: (patientNumber: string) => void;
+  onSubmit: (patientNumber: string, rememberMe: boolean) => void;
   onSkip?: () => void;
   error?: string;
   isLoading?: boolean;
@@ -16,7 +21,17 @@ export default function PatientNumberInput({
   isLoading,
 }: PatientNumberInputProps) {
   const [patientNumber, setPatientNumber] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [localError, setLocalError] = useState("");
+
+  // 記憶された診察券番号を読み込み
+  useEffect(() => {
+    const remembered = loadRememberedPatientNumber();
+    if (remembered) {
+      setPatientNumber(remembered);
+      setRememberMe(true);
+    }
+  }, []);
 
   // 診察券番号のバリデーション
   const validatePatientNumber = (value: string): boolean => {
@@ -41,7 +56,14 @@ export default function PatientNumberInput({
       return;
     }
 
-    onSubmit(trimmed);
+    // 診察券番号を記憶
+    if (rememberMe) {
+      saveRememberedPatientNumber(trimmed);
+    } else {
+      clearRememberedPatientNumber();
+    }
+
+    onSubmit(trimmed, rememberMe);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -97,6 +119,17 @@ export default function PatientNumberInput({
           )}
         </div>
 
+        {/* 診察券番号を記憶 */}
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+          />
+          <span className="text-sm text-gray-600">診察券番号を記憶する</span>
+        </label>
+
         <button
           type="submit"
           disabled={isLoading || !patientNumber}
@@ -112,7 +145,7 @@ export default function PatientNumberInput({
               確認中...
             </span>
           ) : (
-            "確認する"
+            "ログイン"
           )}
         </button>
 

@@ -1,6 +1,7 @@
 import { CustomerSession } from "@/types/customer";
 
 const SESSION_KEY = "clinic_customer_session";
+const REMEMBERED_PATIENT_NUMBER_KEY = "clinic_remembered_patient_number";
 const SESSION_EXPIRY_HOURS = 24; // セッション有効期限（24時間）
 
 /**
@@ -76,4 +77,28 @@ export function createCustomerSession(
   };
   saveCustomerSession(session);
   return session;
+}
+
+/**
+ * 診察券番号を記憶（次回ログイン時に自動入力用）
+ */
+export function saveRememberedPatientNumber(patientNumber: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(REMEMBERED_PATIENT_NUMBER_KEY, patientNumber);
+}
+
+/**
+ * 記憶した診察券番号を取得
+ */
+export function loadRememberedPatientNumber(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(REMEMBERED_PATIENT_NUMBER_KEY);
+}
+
+/**
+ * 記憶した診察券番号をクリア
+ */
+export function clearRememberedPatientNumber(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(REMEMBERED_PATIENT_NUMBER_KEY);
 }
