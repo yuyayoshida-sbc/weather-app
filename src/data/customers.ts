@@ -1,6 +1,6 @@
 import { Customer } from "@/types/customer";
 import { TreatmentHistory, TreatmentFeedback } from "@/types/reservation";
-import { CourseContract } from "./history";
+import { CourseContract, TREATMENT_HISTORY } from "./history";
 
 // ダミー顧客データ（5件）
 export const CUSTOMERS: Customer[] = [
@@ -318,13 +318,26 @@ export function findCustomerById(customerId: string): Customer | null {
 
 /**
  * 顧客の施術履歴を取得
+ * 両方のデータソース（CUSTOMER_HISTORY と TREATMENT_HISTORY）から履歴を統合
  */
 export function getCustomerHistory(customerId: string): TreatmentHistory[] {
   const customer = findCustomerById(customerId);
   if (!customer) return [];
 
-  // CUSTOMER_HISTORYから該当する履歴を取得
-  return CUSTOMER_HISTORY.filter((h) => customer.historyIds.includes(h.id));
+  // 両方のデータソースから履歴を取得
+  const fromCustomerHistory = CUSTOMER_HISTORY.filter((h) => customer.historyIds.includes(h.id));
+  const fromTreatmentHistory = TREATMENT_HISTORY.filter((h) => customer.historyIds.includes(h.id));
+
+  // 重複を除去して結合
+  const allHistory = [...fromCustomerHistory];
+  for (const h of fromTreatmentHistory) {
+    if (!allHistory.find(existing => existing.id === h.id)) {
+      allHistory.push(h);
+    }
+  }
+
+  // 日付順にソート（新しい順）
+  return allHistory.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
 /**
