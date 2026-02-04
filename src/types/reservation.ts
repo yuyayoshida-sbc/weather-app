@@ -175,6 +175,17 @@ export interface ChatMessage {
   showAddressForm?: boolean;  // 住所入力フォーム表示
   isReminder?: boolean;       // リマインダーメッセージフラグ
   showPatientNumberInput?: boolean;  // 診察券番号入力フォーム表示
+  // 画像送信機能用
+  imageUrl?: string;          // 画像データ（base64）
+  imageCaption?: string;      // 画像キャプション
+}
+
+// よく使うフレーズ
+export interface SavedPhrase {
+  id: string;
+  text: string;
+  usageCount: number;
+  createdAt: string;
 }
 
 // 会話の状態

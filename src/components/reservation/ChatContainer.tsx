@@ -180,15 +180,17 @@ export default function ChatContainer() {
   };
 
   // メッセージを送信
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (content: string, imageUrl?: string) => {
     if (isLoading) return;
 
     // ユーザーメッセージを追加
     const userMessage: ChatMessageType = {
       id: `user-${Date.now()}`,
       role: "user",
-      content,
+      content: imageUrl && !content ? "（画像を送信しました）" : content,
       timestamp: new Date().toISOString(),
+      imageUrl,
+      imageCaption: imageUrl && content ? content : undefined,
     };
 
     const newMessages = [...messages, userMessage];

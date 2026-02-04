@@ -74,10 +74,42 @@ export default function ChatMessage({
           </div>
         )}
 
+        {/* 画像表示 */}
+        {message.imageUrl && (
+          <div className="mb-2">
+            <img
+              src={message.imageUrl}
+              alt={message.imageCaption || "送信された画像"}
+              className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+              onClick={() => {
+                // 画像クリックで拡大表示（簡易版）
+                const win = window.open("", "_blank");
+                if (win) {
+                  win.document.write(`
+                    <html>
+                      <head><title>画像</title></head>
+                      <body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#000;">
+                        <img src="${message.imageUrl}" style="max-width:100%;max-height:100vh;object-fit:contain;" />
+                      </body>
+                    </html>
+                  `);
+                }
+              }}
+            />
+            {message.imageCaption && (
+              <p className={`text-xs mt-1 ${isUser ? "text-blue-200" : "text-gray-500"}`}>
+                {message.imageCaption}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* メッセージ本文 */}
-        <div className="whitespace-pre-wrap text-sm leading-relaxed">
-          {message.content}
-        </div>
+        {message.content && (
+          <div className="whitespace-pre-wrap text-sm leading-relaxed">
+            {message.content}
+          </div>
+        )}
 
         {/* メニュー選択ボタン */}
         {message.menuOptions && message.menuOptions.length > 0 && (
